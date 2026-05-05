@@ -17,18 +17,35 @@ type OpenService = {
   status: "open" | "closed";
 };
 
+const coordinatesSchema = {
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+};
+
 const submitCheckInSchema = z.discriminatedUnion("attendeeType", [
   z.object({
     attendeeType: z.literal("member"),
     memberId: z.string().uuid(),
+    ...coordinatesSchema,
   }),
   z.object({
     attendeeType: z.literal("visitor"),
     name: z.string().trim().min(1, "Name is required"),
     email: z.string().trim().email("A valid email is required"),
     phone: z.string().trim().min(1, "Phone number is required"),
+    ...coordinatesSchema,
   }),
 ]);
+
+function buildVisitorNotes(serviceName: string, latitude?: number, longitude?: number) {
+  const parts = [`Public service check-in for ${serviceName}`];
+
+  if (latitude !== undefined && longitude !== undefined) {
+    parts.push(`Location: ${latitude}, ${longitude}`);
+  }
+
+  return parts.join(" | ");
+}
 
 export async function GET(_: Request, ctx: Context) {
   try {
@@ -112,6 +129,8 @@ export async function POST(request: Request, ctx: Context) {
         .insert({
           member_id: payload.memberId,
           service_id: serviceId,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
           checked_in_at: new Date().toISOString(),
         });
 
@@ -133,7 +152,7 @@ export async function POST(request: Request, ctx: Context) {
       phone: payload.phone,
       visit_date: new Date(service.service_date).toISOString().split("T")[0],
       follow_up_status: "pending",
-      notes: `Public service check-in for ${service.name}`,
+      notes: buildVisitorNotes(service.name, payload.latitude, payload.longitude),
     });
 
     if (visitorError) {

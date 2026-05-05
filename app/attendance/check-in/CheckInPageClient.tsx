@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { Input } from "@/components/ui/Input";
@@ -40,10 +40,24 @@ export function CheckInPageClient() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>();
-  const { position, loading: locating } = useGeolocation();
+  const { position, loading: locating, requestPosition, clearError } = useGeolocation();
 
   const isServiceClosed = service?.status === "closed";
-  const isFormDisabled = loading || locating || isServiceClosed || !serviceId;
+  const isFormDisabled = loading || isServiceClosed || !serviceId;
+
+  useEffect(() => {
+    if (!serviceId) {
+      return;
+    }
+
+    requestPosition({
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }).catch(() => {
+      // The browser controls whether the permission dialog appears again.
+    });
+  }, [requestPosition, serviceId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,16 +71,25 @@ export function CheckInPageClient() {
 
     setLoading(true);
     setStatus(undefined);
+    clearError();
 
     try {
+      const currentPosition =
+        position ??
+        (await requestPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }));
+
       await checkIn.mutateAsync({
         search: query,
         service_id: serviceId,
         service_date: new Date().toISOString(),
         service_type: "Saturday",
         location_name: "QR check-in",
-        latitude: position?.coords.latitude,
-        longitude: position?.coords.longitude,
+        latitude: currentPosition.coords.latitude,
+        longitude: currentPosition.coords.longitude,
       });
 
       setStatus("Check-in recorded! Thank you.");
@@ -85,7 +108,8 @@ export function CheckInPageClient() {
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
         <h1 className="text-xl font-semibold text-slate-900">Event check-in</h1>
         <p className="text-sm text-slate-500">
-          Enter your name or email to check in. Location is captured automatically if you allow it.
+          Enter your name or email to check in. This page requests your current location each time it
+          opens so we can record where you are standing.
         </p>
         {isServiceClosed && (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
@@ -102,7 +126,7 @@ export function CheckInPageClient() {
             required
           />
           <Button type="submit" disabled={isFormDisabled}>
-            {loading ? "Checking in..." : "Check in"}
+            {locating ? "Requesting location..." : loading ? "Checking in..." : "Check in"}
           </Button>
         </form>
         {status && <p className="text-xs text-slate-500">{status}</p>}
