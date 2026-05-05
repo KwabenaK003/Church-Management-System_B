@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
+import { useGeolocation } from "@/hooks/useGeolocation";
 
 const CLOSED_SERVICE_ERROR = "Cannot check in to a closed service";
 const DUPLICATE_CHECK_IN_ERROR = "Member has already checked in for this service";
@@ -66,6 +67,7 @@ export function PublicCheckInPageClient({
   const [visitorEmail, setVisitorEmail] = useState("");
   const [visitorPhone, setVisitorPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { position, loading: locating, requestPosition, clearError } = useGeolocation();
 
   useEffect(() => {
     let isMounted = true;
@@ -100,6 +102,16 @@ export function PublicCheckInPageClient({
     };
   }, [serviceId]);
 
+  useEffect(() => {
+    requestPosition({
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }).catch(() => {
+      // The browser controls whether the permission dialog appears again.
+    });
+  }, [requestPosition]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(undefined);
@@ -122,14 +134,25 @@ export function PublicCheckInPageClient({
     }
 
     setIsSubmitting(true);
+    clearError();
 
     try {
+      const currentPosition =
+        position ??
+        (await requestPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }));
+
       if (attendeeType === "member") {
         await apiFetch(`/api/public/check-in/${serviceId}`, {
           method: "POST",
           body: {
             attendeeType: "member",
             memberId: selectedMemberId,
+            latitude: currentPosition.coords.latitude,
+            longitude: currentPosition.coords.longitude,
           },
         });
       } else {
@@ -140,6 +163,8 @@ export function PublicCheckInPageClient({
             name: visitorName.trim(),
             email: visitorEmail.trim(),
             phone: visitorPhone.trim(),
+            latitude: currentPosition.coords.latitude,
+            longitude: currentPosition.coords.longitude,
           },
         });
       }
@@ -210,7 +235,8 @@ export function PublicCheckInPageClient({
           <div className="text-center">
             <h1 className="text-2xl font-semibold text-slate-900">Check In</h1>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Please confirm your attendance for today&apos;s church service.
+              Please confirm your attendance for today&apos;s church service. This page requests your
+              location each time it opens for this check-in.
             </p>
           </div>
         </div>
@@ -306,8 +332,8 @@ export function PublicCheckInPageClient({
             </div>
           )}
 
-          <Button type="submit" disabled={isSubmitting || !attendeeType} className="w-full">
-            {isSubmitting ? "Submitting..." : "Submit"}
+          <Button type="submit" disabled={isSubmitting || locating || !attendeeType} className="w-full">
+            {locating ? "Requesting location..." : isSubmitting ? "Submitting..." : "Submit"}
           </Button>
 
           <div className="text-center">
