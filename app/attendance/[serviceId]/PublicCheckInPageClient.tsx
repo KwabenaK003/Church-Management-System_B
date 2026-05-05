@@ -1,33 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  ChurchIcon,
-  MapPinAreaIcon,
-  WarningIcon,
-  CheckCircleIcon,
-} from "@phosphor-icons/react";
+import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ChurchIcon, WarningIcon } from "@phosphor-icons/react";
 
+import { apiFetch } from "@/lib/api/client";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
-import { usePublicMembers } from "@/lib/hooks/useMembers";
-import { useService, useCheckIn } from "@/lib/hooks/useAttendance";
-import { getPublicChurchSettings } from "@/lib/services/settingsService";
 
 const CLOSED_SERVICE_ERROR = "Cannot check in to a closed service";
 const DUPLICATE_CHECK_IN_ERROR = "Member has already checked in for this service";
 
-function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const earthRadiusMetres = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
+type CheckInContext = {
+  service: {
+    id: string;
+    name: string;
+    service_date: string;
+    service_type: string;
+    status: "open" | "closed";
+  };
+  members: Array<{
+    id: string;
+    first_name: string;
+    last_name: string;
+  }>;
+};
 
-  return earthRadiusMetres * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+function getFriendlyErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "We could not complete your check-in right now.";
+  }
+
+  if (error.message.includes(DUPLICATE_CHECK_IN_ERROR)) {
+    return "You have already checked in for this service.";
+  }
+
+  if (error.message.includes(CLOSED_SERVICE_ERROR)) {
+    return "This service is closed for check-in.";
+  }
+
+  if (error.message.includes("Service not found")) {
+    return "This check-in page could not be found.";
+  }
+
+  return error.message;
 }
 
 export function PublicCheckInPageClient({
@@ -35,134 +54,133 @@ export function PublicCheckInPageClient({
 }: {
   serviceId: string;
 }) {
-  const { data: service, isLoading: serviceLoading, error: serviceError } = useService(serviceId);
-  const { data: members, isLoading: membersLoading } = usePublicMembers();
-  const checkIn = useCheckIn();
+  const router = useRouter();
 
-  const [step, setStep] = useState<"location" | "select" | "done" | "blocked">("location");
-  const [churchSettings, setChurchSettings] = useState<{
-    latitude?: number;
-    longitude?: number;
-    radius_metres: number;
-  } | null>(null);
-  const [geoError, setGeoError] = useState<string>();
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number }>();
+  const [context, setContext] = useState<CheckInContext | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string>();
+  const [submitError, setSubmitError] = useState<string>();
+  const [attendeeType, setAttendeeType] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [search, setSearch] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [checkInMessage, setCheckInMessage] = useState<string>();
+  const [visitorName, setVisitorName] = useState("");
+  const [visitorEmail, setVisitorEmail] = useState("");
+  const [visitorPhone, setVisitorPhone] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    getPublicChurchSettings().then((data) => {
-      if (data) {
-        setChurchSettings(data);
-      }
-    });
-  }, []);
+    let isMounted = true;
 
-  function requestLocation() {
-    if (!navigator.geolocation) {
-      setGeoError("Your browser does not support geolocation.");
-      return;
-    }
+    async function loadContext() {
+      try {
+        const data = await apiFetch<CheckInContext>(`/api/public/check-in/${serviceId}`);
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setUserCoords({ lat: latitude, lng: longitude });
-
-        if (churchSettings?.latitude && churchSettings?.longitude) {
-          const distance = getDistance(
-            latitude,
-            longitude,
-            churchSettings.latitude,
-            churchSettings.longitude,
-          );
-
-          if (distance > churchSettings.radius_metres) {
-            setStep("blocked");
-          } else {
-            setStep("select");
-          }
-        } else {
-          setStep("select");
+        if (!isMounted) {
+          return;
         }
-      },
-      (err) => {
-        setGeoError(`Could not get your location: ${err.message}`);
-      },
-      { enableHighAccuracy: true },
-    );
-  }
 
-  async function handleCheckIn() {
-    if (!selectedMemberId) {
+        setContext(data);
+        setLoadError(undefined);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setLoadError(getFriendlyErrorMessage(error));
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadContext();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [serviceId]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitError(undefined);
+
+    if (!attendeeType) {
+      setSubmitError("Please select either member or visitor.");
       return;
     }
 
-    setCheckInMessage(undefined);
+    if (attendeeType === "member" && !selectedMemberId) {
+      setSubmitError("Please select your name from the member list.");
+      return;
+    }
+
+    if (attendeeType === "visitor") {
+      if (!visitorName.trim() || !visitorEmail.trim() || !visitorPhone.trim()) {
+        setSubmitError("Please fill in your name, email, and phone number.");
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
 
     try {
-      await checkIn.mutateAsync({
-        member_id: selectedMemberId,
-        service_id: serviceId,
-        service_date: new Date().toISOString(),
-        service_type: "Saturday",
-        latitude: userCoords?.lat,
-        longitude: userCoords?.lng,
-      });
-      setSubmitted(true);
-      setStep("done");
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Unable to check you in right now.";
-
-      if (message === DUPLICATE_CHECK_IN_ERROR) {
-        setCheckInMessage("You have already checked in for this service.");
-        return;
+      if (attendeeType === "member") {
+        await apiFetch(`/api/public/check-in/${serviceId}`, {
+          method: "POST",
+          body: {
+            attendeeType: "member",
+            memberId: selectedMemberId,
+          },
+        });
+      } else {
+        await apiFetch(`/api/public/check-in/${serviceId}`, {
+          method: "POST",
+          body: {
+            attendeeType: "visitor",
+            name: visitorName.trim(),
+            email: visitorEmail.trim(),
+            phone: visitorPhone.trim(),
+          },
+        });
       }
 
-      if (message === CLOSED_SERVICE_ERROR) {
-        setCheckInMessage("Check-in is closed for this service.");
-        return;
-      }
-
-      setCheckInMessage(message);
+      router.replace(`/attendance/${serviceId}`);
+    } catch (error) {
+      setSubmitError(getFriendlyErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
-  const filteredMembers = members?.filter((member) => {
-    const query = search.toLowerCase();
+  if (isLoading) {
     return (
-      member.first_name.toLowerCase().includes(query) ||
-      member.last_name.toLowerCase().includes(query)
-    );
-  });
-
-  if (serviceLoading || membersLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--page-bg)] px-4 py-12">
         <Spinner size={36} className="text-[var(--blue-600)]" />
       </div>
     );
   }
 
-  if (serviceError || !service) {
+  if (loadError || !context) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-lg font-semibold text-slate-800">Service not found</p>
-          <p className="text-sm text-slate-500 mt-1">This check-in link may be invalid or expired.</p>
+      <div className="min-h-screen flex items-center justify-center bg-[var(--page-bg)] px-4 py-12">
+        <div className="w-full max-w-md rounded-3xl border border-[var(--border-color)] bg-white p-8 text-center shadow-[var(--shadow-md)]">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--danger-bg)]">
+            <WarningIcon size={24} className="text-[var(--danger-text)]" />
+          </div>
+          <p className="mt-5 text-lg font-semibold text-slate-900">Service not found</p>
+          <p className="mt-2 text-sm text-slate-500">
+            {loadError ?? "This check-in link may be invalid or expired."}
+          </p>
         </div>
       </div>
     );
   }
 
-  if (service.status === "closed") {
+  if (context.service.status === "closed") {
     return (
       <div className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md bg-white border border-[var(--border-color)] rounded-2xl p-6 shadow-[var(--shadow-md)] text-center space-y-4">
-          <div className="mx-auto w-12 h-12 rounded-full bg-[var(--danger-bg)] flex items-center justify-center">
+        <div className="w-full max-w-md bg-white border border-[var(--border-color)] rounded-3xl p-8 shadow-[var(--shadow-md)] text-center space-y-4">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-[var(--danger-bg)] flex items-center justify-center">
             <WarningIcon size={24} className="text-[var(--danger-text)]" />
           </div>
           <div>
@@ -171,6 +189,12 @@ export function PublicCheckInPageClient({
               Check-in for this service has been closed. Please contact a church admin if you need help.
             </p>
           </div>
+          <Link
+            href={`/attendance/${serviceId}`}
+            className="inline-flex text-sm font-medium text-[var(--blue-600)] hover:text-[var(--blue-700)]"
+          >
+            Back to home
+          </Link>
         </div>
       </div>
     );
@@ -179,123 +203,122 @@ export function PublicCheckInPageClient({
   return (
     <div className="min-h-screen bg-[var(--page-bg)] flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8 gap-3">
-          <div className="w-12 h-12 rounded-xl bg-[var(--blue-600)] flex items-center justify-center">
-            <ChurchIcon size={24} color="white" weight="fill" />
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--blue-600)]">
+            <ChurchIcon size={28} color="white" weight="fill" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-semibold text-slate-900">{service.name}</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {new Date(service.service_date).toLocaleDateString("en-GB", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
+            <h1 className="text-2xl font-semibold text-slate-900">Check In</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Please confirm your attendance for today&apos;s church service.
             </p>
           </div>
         </div>
 
-        <div className="bg-white border border-[var(--border-color)] rounded-2xl p-6 shadow-[var(--shadow-md)]">
-          {step === "location" && (
-            <div className="flex flex-col items-center text-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-[var(--blue-50)] flex items-center justify-center">
-                <MapPinAreaIcon size={24} className="text-[var(--blue-600)]" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-900">Location Verification Required</p>
-                <p className="text-sm text-slate-500 mt-1">
-                  We need to confirm you are at the service location before checking you in.
-                </p>
-              </div>
-              {geoError && (
-                <div className="w-full bg-[var(--danger-bg)] text-[var(--danger-text)] rounded-lg px-4 py-3 text-sm border border-red-200">
-                  {geoError}
-                </div>
-              )}
-              <Button onClick={requestLocation} className="w-full">
-                <MapPinAreaIcon size={16} />
-                Allow Location Access
-              </Button>
-            </div>
-          )}
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 rounded-3xl border border-[var(--border-color)] bg-white p-6 shadow-[var(--shadow-md)]"
+        >
+          <Select
+            label="Attendee Type"
+            value={attendeeType}
+            onChange={(event) => {
+              setAttendeeType(event.target.value);
+              setSubmitError(undefined);
+              setSelectedMemberId("");
+              setVisitorName("");
+              setVisitorEmail("");
+              setVisitorPhone("");
+            }}
+            placeholder="Select member or visitor"
+            options={[
+              { value: "member", label: "Member" },
+              { value: "visitor", label: "Visitor" },
+            ]}
+            required
+          />
 
-          {step === "blocked" && (
-            <div className="flex flex-col items-center text-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-[var(--danger-bg)] flex items-center justify-center">
-                <WarningIcon size={24} className="text-[var(--danger-text)]" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-900">You are outside the allowed zone</p>
-                <p className="text-sm text-slate-500 mt-1">
-                  You must be within {churchSettings?.radius_metres ?? 500} metres of the service location to check in.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {step === "select" && (
-            <div className="space-y-4">
-              <p className="text-sm font-medium text-slate-700">Select your name to check in</p>
-              <label htmlFor="member-search" className="sr-only">
-                Search your name
-              </label>
-              <input
-                id="member-search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search your name..."
-                className="w-full border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
-              <div className="border border-[var(--border-color)] rounded-lg divide-y divide-[var(--border-color)] max-h-60 overflow-y-auto">
-                {filteredMembers?.map((member) => (
-                  <button
-                    key={member.id}
-                    onClick={() => setSelectedMemberId(member.id)}
-                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                      selectedMemberId === member.id
-                        ? "bg-[var(--blue-50)] text-[var(--blue-700)] font-medium"
-                        : "hover:bg-slate-50 text-slate-800"
-                    }`}
-                  >
-                    {member.first_name} {member.last_name}
-                  </button>
-                ))}
-                {filteredMembers?.length === 0 && (
-                  <p className="px-4 py-3 text-sm text-slate-400">No members found</p>
+          {attendeeType === "member" && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-slate-700">
+                Select your name from the member list below.
+              </p>
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-[var(--border-color)]">
+                {context.members.length === 0 ? (
+                  <p className="px-4 py-3 text-sm text-slate-500">
+                    No members are available for check-in yet.
+                  </p>
+                ) : (
+                  context.members.map((member) => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => setSelectedMemberId(member.id)}
+                      className={`flex w-full items-center justify-between border-b border-[var(--border-color)] px-4 py-3 text-left text-sm last:border-b-0 ${
+                        selectedMemberId === member.id
+                          ? "bg-[var(--blue-50)] font-medium text-[var(--blue-700)]"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span>
+                        {member.first_name} {member.last_name}
+                      </span>
+                      {selectedMemberId === member.id && (
+                        <span className="text-xs uppercase tracking-wide">Selected</span>
+                      )}
+                    </button>
+                  ))
                 )}
               </div>
-              {checkInMessage && (
-                <div className="rounded-lg border border-red-200 bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger-text)]">
-                  {checkInMessage}
-                </div>
-              )}
-              <Button
-                onClick={handleCheckIn}
-                disabled={!selectedMemberId || checkIn.isPending}
-                className="w-full"
-              >
-                {checkIn.isPending ? "Checking in..." : "Confirm Check-In"}
-              </Button>
             </div>
           )}
 
-          {step === "done" && (
-            <div className="flex flex-col items-center text-center gap-4 py-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
-                <CheckCircleIcon size={24} className="text-emerald-600" />
-              </div>
-              <div>
-                <p className="font-semibold text-slate-900">Check-in successful</p>
-                <p className="text-sm text-slate-500 mt-1">
-                  {submitted
-                    ? "Thank you for checking in. Have a wonderful service."
-                    : "Your check-in has been recorded."}
-                </p>
-              </div>
+          {attendeeType === "visitor" && (
+            <div className="space-y-4">
+              <Input
+                label="Name"
+                value={visitorName}
+                onChange={(event) => setVisitorName(event.target.value)}
+                placeholder="Enter your full name"
+                required
+              />
+              <Input
+                label="Email"
+                type="email"
+                value={visitorEmail}
+                onChange={(event) => setVisitorEmail(event.target.value)}
+                placeholder="Enter your email address"
+                required
+              />
+              <Input
+                label="Phone Number"
+                value={visitorPhone}
+                onChange={(event) => setVisitorPhone(event.target.value)}
+                placeholder="Enter your phone number"
+                required
+              />
             </div>
           )}
-        </div>
+
+          {submitError && (
+            <div className="rounded-lg border border-red-200 bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger-text)]">
+              {submitError}
+            </div>
+          )}
+
+          <Button type="submit" disabled={isSubmitting || !attendeeType} className="w-full">
+            {isSubmitting ? "Submitting..." : "Submit"}
+          </Button>
+
+          <div className="text-center">
+            <Link
+              href={`/attendance/${serviceId}`}
+              className="text-sm font-medium text-[var(--blue-600)] hover:text-[var(--blue-700)]"
+            >
+              Back to home
+            </Link>
+          </div>
+        </form>
       </div>
     </div>
   );
