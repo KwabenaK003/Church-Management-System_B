@@ -67,6 +67,7 @@ export function PublicCheckInPageClient({
   const [visitorEmail, setVisitorEmail] = useState("");
   const [visitorPhone, setVisitorPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>();
   const { position, loading: locating, requestPosition, clearError } = useGeolocation();
 
   useEffect(() => {
@@ -112,9 +113,21 @@ export function PublicCheckInPageClient({
     });
   }, [requestPosition]);
 
+  function getSelectedAttendeeName() {
+    if (attendeeType === "visitor") {
+      return visitorName.trim();
+    }
+
+    const selectedMember = context?.members.find((member) => member.id === selectedMemberId);
+    return selectedMember
+      ? `${selectedMember.first_name} ${selectedMember.last_name}`.trim()
+      : "";
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(undefined);
+    setSuccessMessage(undefined);
 
     if (!attendeeType) {
       setSubmitError("Please select either member or visitor.");
@@ -169,7 +182,14 @@ export function PublicCheckInPageClient({
         });
       }
 
-      router.replace(`/attendance/${serviceId}`);
+      const attendeeName = getSelectedAttendeeName();
+      setSuccessMessage(
+        `Welcome, ${attendeeName} to Bubiashie English Service Church. Enjoy today's service and stay blessed!`,
+      );
+
+      window.setTimeout(() => {
+        router.replace(`/attendance/${serviceId}`);
+      }, 2500);
     } catch (error) {
       setSubmitError(getFriendlyErrorMessage(error));
     } finally {
@@ -332,7 +352,17 @@ export function PublicCheckInPageClient({
             </div>
           )}
 
-          <Button type="submit" disabled={isSubmitting || locating || !attendeeType} className="w-full">
+          {successMessage && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              {successMessage}
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            disabled={isSubmitting || locating || !attendeeType || !!successMessage}
+            className="w-full"
+          >
             {locating ? "Requesting location..." : isSubmitting ? "Submitting..." : "Submit"}
           </Button>
 

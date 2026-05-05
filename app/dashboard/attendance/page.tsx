@@ -101,7 +101,7 @@ export default function AttendancePage() {
     setAddOpen(false);
   }
 
-  function copyCheckinUrl(serviceId: string) {
+  function copyCheckInUrl(serviceId: string) {
     const url = `${window.location.origin}/attendance/${serviceId}`;
     navigator.clipboard.writeText(url);
     addToast("Check-in link copied to clipboard");
@@ -298,7 +298,7 @@ export default function AttendancePage() {
                         {
                           label: "Copy Link",
                           icon: <Copy size={16} />,
-                          onClick: () => copyCheckinUrl(selectedService),
+                          onClick: () => copyCheckInUrl(selectedService),
                         },
                         {
                           label: "Generate QR Code",
@@ -538,7 +538,7 @@ export default function AttendancePage() {
           {qrDataUrl && (
             <a
               href={qrDataUrl}
-              download={`checkin-qr-${selectedService}.png`}
+              download={`check-in-qr-${selectedService}.png`}
               className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-color)] bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
               <DownloadSimple size={16} />

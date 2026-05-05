@@ -4,7 +4,7 @@ import { Resend } from "resend";
 import type { ReactElement } from "react";
 import { EMAIL_TEMPLATES } from "@/constants";
 import WelcomeEmail from "@/emails/WelcomeEmail";
-import AttendanceReminder from "@/emails/AttendanceReminder";
+import AttendanceReminder from "@/emailschurchReminder";
 import VisitorFollowUp from "@/emails/VisitorFollowUp";
 
 const resendKey = process.env.RESEND_API_KEY;
