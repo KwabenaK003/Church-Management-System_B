@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+
+  --page-bg: #f6efe4;
+  --panel-bg: #FFFFFF;
+  --sidebar-bg: #1c100b;
+  --sidebar-hover: rgba(255,255,255,0.06);
+  --sidebar-active: rgba(155,44,90,0.18);
+
+  --border-color: #e8ddd0;
+  --border-strong: #d8c8b8;
+
+  --text-primary: #1f2937;
+  --text-secondary: #6b5e54;
+  --text-muted: #9c8e82;
+  --text-inverse: #faf5ef;
+
+
+  --blue-50: #fdf2f7;
+  --blue-100: #fce7f2;
+  --blue-200: #fbcfe4;
+  --blue-500: #9b2c5a;
+  --blue-600: #8a2548;
+  --blue-700: #7a1f3f;
+
+  --success-bg: #f0faf2;
+  --success-text: #1a7a3b;
+  --warning-bg: #fef8ee;
+  --warning-text: #9a5c1e;
+  --danger-bg: #fef2ef;
+  --danger-text: #b22026;
+  --info-bg: #fdf2f7;
+  --info-text: #8a2548;
+  --neutral-bg: #f2ebe2;
+  --neutral-text: #5c5047;
+
+  --shadow-sm: 0 1px 3px rgba(28,16,11,0.06);
+  --shadow-md: 0 4px 16px rgba(28,16,11,0.1);
+
+  --chart-1: #8a2548;
+  --chart-2: #d97706;
+  --chart-3: #0f766e;
+  --chart-4: #6b5e54;
+  --chart-grid: #f2ebe2;
+  --chart-tick: #9c8e82;
+
+  font-family: "Segoe UI", sans-serif;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--page-bg);
+  color: var(--text-primary);
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dashboard-shell {
+  font-family: var(--font-body), "Segoe UI", sans-serif;
+}
+
+.dashboard-shell h1,
+.dashboard-shell .dashboard-brand {
+  font-family: var(--font-display), Georgia, serif;
+  letter-spacing: -0.02em;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}
+
+/* Sticky last column for action columns in tables */
+.sticky-col-last {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+}
+thead .sticky-col-last {
+  z-index: 11;
+  background: rgb(248 250 252); /* bg-slate-50 */
+}
+tbody .sticky-col-last {
+  background: white;
+}
+tbody tr:hover .sticky-col-last {
+  background: rgb(248 250 252); /* bg-slate-50 */
+}
+.sticky-col-last::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 8px;
+  background: linear-gradient(to right, transparent, rgba(0,0,0,0.03));
+  pointer-events: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--blue-500);
+  outline-offset: 2px;
+}
+

@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Environment files — NEVER commit these
+.env.local
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# QR code output
+qrcode.png
+scripts/*.png
+
+# Misc
+.DS_Store
+*.log
+
+.vscode/
+.antigravity
+
+tsc
+node_modules
