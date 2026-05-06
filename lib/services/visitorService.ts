@@ -49,6 +49,12 @@ export async function updateVisitorFollowUp(id: string, status: FollowUpStatus):
   });
 }
 
+export async function deleteVisitor(id: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/api/visitors/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function convertVisitorToMember(visitorId: string, memberData: MemberPayload): Promise<Member> {
   const visitor = await getVisitorById(visitorId);
 

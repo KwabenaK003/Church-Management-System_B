@@ -15,7 +15,7 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Modal } from "@/components/ui/Modal";
 import { ArrowLeft, Pencil, CalendarCheck, User } from "@phosphor-icons/react";
-import { MembershipStatus, Member } from "@/types";
+import { MaritalStatus, MembershipStatus, Member } from "@/types";
 import { useForm, Controller } from "react-hook-form";
 import { format } from "date-fns";
 
@@ -25,6 +25,30 @@ const statusBadge: Record<MembershipStatus, "success" | "warning" | "neutral" | 
   transferred: "neutral",
   deceased: "danger",
 };
+
+const genderOptions = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
+];
+
+const maritalStatusOptions: { value: MaritalStatus; label: string }[] = [
+  { value: "single", label: "Single" },
+  { value: "married", label: "Married" },
+  { value: "widowed", label: "Widowed" },
+  { value: "divorced", label: "Divorced" },
+];
+
+const membershipStatusOptions: { value: MembershipStatus; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "transferred", label: "Transferred" },
+  { value: "deceased", label: "Deceased" },
+];
+
+function asFormString(value?: string | null) {
+  return value ?? "";
+}
 
 function DetailRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -52,13 +76,21 @@ export default function MemberDetailPage() {
     reset({
       first_name: member.first_name,
       last_name: member.last_name,
-      email: member.email,
-      phone: member.phone,
-      gender: member.gender,
-      occupation: member.occupation,
+      email: asFormString(member.email),
+      phone: asFormString(member.phone),
+      gender: asFormString(member.gender),
+      date_of_birth: asFormString(member.date_of_birth),
+      address: asFormString(member.address),
+      occupation: asFormString(member.occupation),
+      marital_status: member.marital_status ?? undefined,
+      baptism_date: asFormString(member.baptism_date),
       membership_status: member.membership_status,
-      cluster_id: member.cluster_id,
-      notes: member.notes,
+      cluster_id: asFormString(member.cluster_id),
+      join_date: asFormString(member.join_date),
+      emergency_contact_name: asFormString(member.emergency_contact_name),
+      emergency_contact_phone: asFormString(member.emergency_contact_phone),
+      emergency_contact_relationship: asFormString(member.emergency_contact_relationship),
+      notes: asFormString(member.notes),
     });
     setEditOpen(true);
   }
@@ -205,22 +237,59 @@ export default function MemberDetailPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Controller name="gender" control={control} render={({ field }) => (
-              <Select label="Gender" options={[{ value: "male", label: "Male" }, { value: "female", label: "Female" }]} placeholder="Select" {...field} />
+              <Select
+                label="Gender"
+                options={genderOptions}
+                placeholder="Select"
+                {...field}
+                value={field.value ?? ""}
+              />
             )} />
-            <Input label="Occupation" {...register("occupation")} />
+            <Controller
+              name="marital_status"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  label="Marital Status"
+                  options={maritalStatusOptions}
+                  placeholder="Select"
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              )}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
+            <Input label="Date of Birth" type="date" {...register("date_of_birth")} />
+            <Input label="Baptism Date" type="date" {...register("baptism_date")} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Occupation" {...register("occupation")} />
+            <Input label="Join Date" type="date" {...register("join_date")} />
+          </div>
+          <Input label="Address" {...register("address")} />
+          <div className="grid grid-cols-2 gap-4">
             <Controller name="membership_status" control={control} render={({ field }) => (
-              <Select label="Status" options={[
-                { value: "active", label: "Active" },
-                { value: "inactive", label: "Inactive" },
-                { value: "transferred", label: "Transferred" },
-                { value: "deceased", label: "Deceased" },
-              ]} {...field} />
+              <Select
+                label="Status"
+                options={membershipStatusOptions}
+                {...field}
+                value={field.value ?? ""}
+              />
             )} />
             <Controller name="cluster_id" control={control} render={({ field }) => (
-              <Select label="Cluster" options={clusterOptions} {...field} />
+              <Select label="Cluster" options={clusterOptions} {...field} value={field.value ?? ""} />
             )} />
+          </div>
+          <div className="border-t border-[var(--border-color)] pt-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Emergency Contact
+            </p>
+            <div className="grid grid-cols-3 gap-4">
+              <Input label="Name" {...register("emergency_contact_name")} />
+              <Input label="Phone" {...register("emergency_contact_phone")} />
+              <Input label="Relationship" {...register("emergency_contact_relationship")} />
+            </div>
           </div>
           <Textarea label="Notes" {...register("notes")} />
           <div className="flex justify-end gap-3 pt-2">

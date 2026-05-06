@@ -5,6 +5,7 @@ import {
   logVisitor,
   updateVisitorFollowUp,
   getVisitorsPaginated,
+  deleteVisitor,
 } from "@/lib/services/visitorService";
 import { apiFetch } from "@/lib/api/client";
 
@@ -54,6 +55,14 @@ export function useUpdateVisitor() {
         method: "PATCH",
         body: payload,
       }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
+export function useDeleteVisitor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteVisitor(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
 }

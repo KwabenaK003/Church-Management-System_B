@@ -8,6 +8,11 @@ import {
   parseJson,
   requireApiUser,
 } from "@/lib/api/server";
+import {
+  getMemberWithRelations,
+  splitEmergencyContactFields,
+  syncMemberEmergencyContact,
+} from "@/lib/server/member-records";
 
 const updateMemberSchema = z.object({
   first_name: z.string().min(1).optional(),
@@ -42,15 +47,7 @@ export async function GET(
 
   try {
     const { id } = await context.params;
-    const { data, error } = await supabaseAdmin
-      .from("members")
-      .select("*, cluster:clusters(id,name)")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(error.message);
-    }
+    const data = await getMemberWithRelations(id);
 
     if (!data) {
       return jsonError("Member not found", 404);
@@ -74,8 +71,10 @@ export async function PATCH(
   try {
     const { id } = await context.params;
     const payload = await parseJson(request, updateMemberSchema);
+    const { hasEmergencyContactFields, memberFields, emergencyContact } =
+      splitEmergencyContactFields(payload);
     const updates = {
-      ...payload,
+      ...memberFields,
       email: payload.email || undefined,
       cluster_id: payload.cluster_id || undefined,
     };
@@ -84,14 +83,19 @@ export async function PATCH(
       .from("members")
       .update(updates)
       .eq("id", id)
-      .select("*")
+      .select("id")
       .single();
 
     if (error) {
       throw new Error(error.message);
     }
 
-    return jsonSuccess(data);
+    if (hasEmergencyContactFields) {
+      await syncMemberEmergencyContact(id, emergencyContact);
+    }
+
+    const member = await getMemberWithRelations(data.id);
+    return jsonSuccess(member);
   } catch (error) {
     return handleRouteError(error);
   }
