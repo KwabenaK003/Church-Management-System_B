@@ -5,6 +5,7 @@ import {
   useVisitorsPaginated,
   useCreateVisitor,
   useUpdateVisitor,
+  useDeleteVisitor,
 } from "@/lib/hooks/useVisitors";
 import { useMembers } from "@/lib/hooks/useMembers";
 import { Visitor, FollowUpStatus } from "@/types";
@@ -19,12 +20,14 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { TableToolbar } from "@/components/ui/TableToolbar";
+import { DeleteConfirmModal } from "@/components/ui/DeleteConfirmModal";
 import { exportToCsv } from "@/lib/utils/exportCsv";
 import {
   CheckCircle,
   UserPlusIcon,
   MagnifyingGlassIcon,
   UsersFourIcon,
+  Trash,
 } from "@phosphor-icons/react";
 import { Export } from "@phosphor-icons/react";
 import { useForm, Controller } from "react-hook-form";
@@ -84,6 +87,7 @@ export default function VisitorsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState<string | null>(null);
   const [notesValue, setNotesValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Visitor | null>(null);
 
   const { data: visitorsData, isLoading } = useVisitorsPaginated(
     search || undefined,
@@ -98,6 +102,7 @@ export default function VisitorsPage() {
   const { data: members } = useMembers();
   const createVisitor = useCreateVisitor();
   const updateVisitor = useUpdateVisitor();
+  const deleteVisitor = useDeleteVisitor();
 
   const {
     selectedIds,
@@ -348,6 +353,14 @@ export default function VisitorsPage() {
                           >
                             Notes
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteTarget(v)}
+                          >
+                            <Trash size={14} />
+                            Delete
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -474,6 +487,20 @@ export default function VisitorsPage() {
           </div>
         </div>
       </Modal>
+
+      <DeleteConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+
+          return deleteVisitor.mutateAsync(deleteTarget.id).then(() => {
+            setDeleteTarget(null);
+          });
+        }}
+        description={`Are you sure you want to delete "${deleteTarget?.first_name ?? ""} ${deleteTarget?.last_name ?? ""}"? This action cannot be undone.`}
+        isPending={deleteVisitor.isPending}
+      />
     </div>
   );
 }

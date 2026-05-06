@@ -8,6 +8,11 @@ import {
   parseNumberParam,
   requireApiUser,
 } from "@/lib/api/server";
+import {
+  getMemberWithRelations,
+  splitEmergencyContactFields,
+  syncMemberEmergencyContact,
+} from "@/lib/server/member-records";
 
 const memberSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
@@ -96,8 +101,9 @@ export async function POST(request: Request) {
 
   try {
     const payload = await parseJson(request, memberSchema);
+    const { memberFields, emergencyContact } = splitEmergencyContactFields(payload);
     const row = {
-      ...payload,
+      ...memberFields,
       email: payload.email || undefined,
       cluster_id: payload.cluster_id || undefined,
       membership_status: payload.membership_status ?? "active",
@@ -107,14 +113,22 @@ export async function POST(request: Request) {
     const { data, error } = await supabaseAdmin
       .from("members")
       .insert(row)
-      .select("*")
+      .select("id")
       .single();
 
     if (error) {
       throw new Error(error.message);
     }
 
-    return jsonSuccess(data, 201);
+    try {
+      await syncMemberEmergencyContact(data.id, emergencyContact);
+    } catch (error) {
+      await supabaseAdmin.from("members").delete().eq("id", data.id);
+      throw error;
+    }
+
+    const member = await getMemberWithRelations(data.id);
+    return jsonSuccess(member, 201);
   } catch (error) {
     return handleRouteError(error);
   }

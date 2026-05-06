@@ -85,3 +85,26 @@ export async function PATCH(
     return handleRouteError(error);
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireApiUser();
+  if ("response" in auth) {
+    return auth.response;
+  }
+
+  try {
+    const { id } = await context.params;
+    const { error } = await supabaseAdmin.from("visitors").delete().eq("id", id);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return jsonSuccess({ success: true });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
