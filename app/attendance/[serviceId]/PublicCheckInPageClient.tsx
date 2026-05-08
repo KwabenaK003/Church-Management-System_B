@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChurchIcon, WarningIcon } from "@phosphor-icons/react";
@@ -68,7 +68,33 @@ export function PublicCheckInPageClient({
   const [visitorPhone, setVisitorPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>();
-  const { position, loading: locating, requestPosition, clearError } = useGeolocation();
+  const {
+    position,
+    loading: locating,
+    error: geolocationError,
+    permissionState,
+    requestPosition,
+    clearError,
+  } = useGeolocation();
+  const locationMessage = geolocationError
+    ? geolocationError
+    : permissionState === "denied"
+      ? "Location is blocked for this site. Enable location in your browser settings, then try again."
+      : permissionState === "prompt"
+        ? "Allow location in your browser notification to continue."
+    : locating
+      ? "Requesting your current location..."
+      : "We request your location each time this page loads.";
+
+  const requestLocation = useCallback(() => {
+    requestPosition({
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }).catch(() => {
+      // The browser decides whether to show a native permission prompt again.
+    });
+  }, [requestPosition]);
 
   useEffect(() => {
     let isMounted = true;
@@ -104,14 +130,19 @@ export function PublicCheckInPageClient({
   }, [serviceId]);
 
   useEffect(() => {
-    requestPosition({
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-    }).catch(() => {
-      // The browser controls whether the permission dialog appears again.
-    });
-  }, [requestPosition]);
+    requestLocation();
+  }, [requestLocation]);
+
+  useEffect(() => {
+    const handlePageShow = () => {
+      requestLocation();
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, [requestLocation]);
 
   function getSelectedAttendeeName() {
     if (attendeeType === "visitor") {
@@ -140,8 +171,8 @@ export function PublicCheckInPageClient({
     }
 
     if (attendeeType === "visitor") {
-      if (!visitorName.trim() || !visitorEmail.trim() || !visitorPhone.trim()) {
-        setSubmitError("Please fill in your name, email, and phone number.");
+      if (!visitorName.trim() || !visitorPhone.trim()) {
+        setSubmitError("Please fill in your name and phone number.");
         return;
       }
     }
@@ -255,8 +286,8 @@ export function PublicCheckInPageClient({
           <div className="text-center">
             <h1 className="text-2xl font-semibold text-slate-900">Check In</h1>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Please confirm your attendance for today&apos;s church service. This page requests your
-              location each time it opens for this check-in.
+              Please confirm your attendance for today&apos;s church service. Your current
+              location is required before check-in can be completed.
             </p>
           </div>
         </div>
@@ -333,8 +364,7 @@ export function PublicCheckInPageClient({
                 type="email"
                 value={visitorEmail}
                 onChange={(event) => setVisitorEmail(event.target.value)}
-                placeholder="Enter your email address"
-                required
+                placeholder="Enter your email address (optional)"
               />
               <Input
                 label="Phone Number"
@@ -343,6 +373,34 @@ export function PublicCheckInPageClient({
                 placeholder="Enter your phone number"
                 required
               />
+            </div>
+          )}
+
+          {!position && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <p>{locationMessage}</p>
+              <p className="mt-1 text-xs text-amber-700">
+                If the browser prompt does not appear, use the button below. Some browsers will
+                not show the native prompt again after a previous block decision.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={requestLocation}
+                >
+                  Request location again
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => window.location.reload()}
+                >
+                  Refresh page
+                </Button>
+              </div>
             </div>
           )}
 
@@ -360,7 +418,13 @@ export function PublicCheckInPageClient({
 
           <Button
             type="submit"
-            disabled={isSubmitting || locating || !attendeeType || !!successMessage}
+            disabled={
+              isSubmitting ||
+              locating ||
+              !attendeeType ||
+              !!successMessage ||
+              !position
+            }
             className="w-full"
           >
             {locating ? "Requesting location..." : isSubmitting ? "Submitting..." : "Submit"}

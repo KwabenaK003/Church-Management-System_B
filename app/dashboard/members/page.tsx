@@ -164,7 +164,7 @@ export default function MembersPage() {
   }
 
   const clusterOptions = [
-    { value: "", label: "No cluster" },
+    { value: "", label: "No department" },
     ...(clusters?.map((c) => ({ value: c.id, label: c.name })) ?? []),
   ];
 
@@ -185,7 +185,7 @@ export default function MembersPage() {
       { key: "email", header: "Email" },
       { key: "phone", header: "Phone" },
       { key: "membership_status", header: "Status" },
-      { key: "cluster", header: "Cluster" },
+      { key: "cluster", header: "Department" },
       { key: "gender", header: "Gender" },
       { key: "join_date", header: "Join Date" },
     ]);
@@ -250,7 +250,7 @@ export default function MembersPage() {
           }}
           className="border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
-          <option value="">All Clusters</option>
+          <option value="">All Departments</option>
           {(clusters ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -322,7 +322,7 @@ export default function MembersPage() {
                       "Email",
                       "Phone",
                       "Status",
-                      "Cluster",
+                      "Department",
                       "Joined",
                     ].map((h) => (
                       <th
@@ -513,9 +513,9 @@ export default function MembersPage() {
               control={control}
               render={({ field }) => (
                 <Select
-                  label="Cluster"
+                  label="Department"
                   options={clusterOptions}
-                  placeholder="No cluster"
+                  placeholder="No department"
                   {...field}
                 />
               )}

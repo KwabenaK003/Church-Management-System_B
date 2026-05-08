@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { User } from "@supabase/supabase-js";
 import { ZodError, ZodType } from "zod";
 
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createSupabaseServer } from "@/lib/supabase-server";
 
 export function jsonError(
@@ -33,6 +34,25 @@ export async function requireApiUser(): Promise<
 
   if (error || !user) {
     return { response: jsonError("Unauthorized", 401) };
+  }
+
+  const { data: appUser, error: appUserError } = await supabaseAdmin
+    .from("app_users")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (appUserError) {
+    return { response: jsonError(appUserError.message, 500) };
+  }
+
+  if (!appUser) {
+    return {
+      response: jsonError(
+        "Access denied. Only dashboard users created by an administrator can continue.",
+        403,
+      ),
+    };
   }
 
   return { user };

@@ -101,7 +101,7 @@ export default function MemberDetailPage() {
   }
 
   const clusterOptions = [
-    { value: "", label: "No cluster" },
+    { value: "", label: "No department" },
     ...(clusters?.map((c) => ({ value: c.id, label: c.name })) ?? []),
   ];
 
@@ -178,7 +178,7 @@ export default function MemberDetailPage() {
             <DetailRow label="Occupation" value={member.occupation} />
             <DetailRow label="Address" value={member.address} />
             <DetailRow label="Baptism Date" value={member.baptism_date ? format(new Date(member.baptism_date), "dd MMMM yyyy") : undefined} />
-            <DetailRow label="Cluster" value={member.cluster?.name} />
+            <DetailRow label="Department" value={member.cluster?.name} />
           </div>
 
           {(member.emergency_contact_name || member.emergency_contact_phone) && (
@@ -278,7 +278,7 @@ export default function MemberDetailPage() {
               />
             )} />
             <Controller name="cluster_id" control={control} render={({ field }) => (
-              <Select label="Cluster" options={clusterOptions} {...field} value={field.value ?? ""} />
+              <Select label="Department" options={clusterOptions} {...field} value={field.value ?? ""} />
             )} />
           </div>
           <div className="border-t border-[var(--border-color)] pt-4">

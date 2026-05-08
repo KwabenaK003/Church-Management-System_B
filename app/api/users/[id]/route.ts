@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/api/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type Context = { params: Promise<{ id: string }> };
 
 export async function PUT(req: NextRequest, ctx: Context) {
+  const auth = await requireApiUser();
+  if ("response" in auth) {
+    return auth.response;
+  }
+
   const { id } = await ctx.params;
   const body   = await req.json();
   const { data, error } = await supabaseAdmin
@@ -13,6 +19,11 @@ export async function PUT(req: NextRequest, ctx: Context) {
 }
 
 export async function DELETE(_: NextRequest, ctx: Context) {
+  const auth = await requireApiUser();
+  if ("response" in auth) {
+    return auth.response;
+  }
+
   const { id } = await ctx.params;
 
   // Delete from auth

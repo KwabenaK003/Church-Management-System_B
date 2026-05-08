@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/api/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireApiUser();
+  if ("response" in auth) {
+    return auth.response;
+  }
+
   const { searchParams } = new URL(req.url);
   const search      = searchParams.get("search");
   const page        = parseInt(searchParams.get("page")        ?? "1");

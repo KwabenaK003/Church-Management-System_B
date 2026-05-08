@@ -152,13 +152,13 @@ function ClustersTab() {
           }}
         >
           <Plus size={14} />
-          Add Cluster
+          Add Department
         </Button>
       </div>
       {isLoading ? (
         <Spinner size={24} />
       ) : clusters?.length === 0 ? (
-        <EmptyState title="No clusters yet" />
+        <EmptyState title="No departments yet" />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {clusters?.map((c) => (
@@ -202,11 +202,11 @@ function ClustersTab() {
           setEditing(null);
           reset();
         }}
-        title={editing ? "Edit Cluster" : "Add Cluster"}
+        title={editing ? "Edit Department" : "Add Department"}
         size="sm"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Input label="Cluster Name" {...register("name")} required />
+          <Input label="Department Name" {...register("name")} required />
           <Input label="Leader Name" {...register("leader_name")} />
           <Textarea label="Description" {...register("description")} />
           <div className="flex justify-end gap-3">
@@ -229,7 +229,7 @@ function ClustersTab() {
           await deleteCluster.mutateAsync(deleteTarget.id);
           setDeleteTarget(null);
         }}
-        description={`Are you sure you want to delete the "${deleteTarget?.name}" cluster? This action cannot be undone.`}
+        description={`Are you sure you want to delete the "${deleteTarget?.name}" department? This action cannot be undone.`}
         isPending={deleteCluster.isPending}
       />
     </div>
@@ -344,7 +344,7 @@ type Category = DonationCategory | ExpenseCategory;
 
 const TABS = [
   { id: "profile", label: "Church Profile", icon: <Buildings size={16} /> },
-  { id: "clusters", label: "Clusters", icon: <UsersThree size={16} /> },
+  { id: "clusters", label: "Departments", icon: <UsersThree size={16} /> },
   {
     id: "donation_cats",
     label: "Donation Categories",
@@ -360,7 +360,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-900">Settings</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Configure church profile, clusters, and categories
+          Configure church profile, departments, and categories
         </p>
       </div>
       <Tabs tabs={TABS} active={tab} onChange={setTab} />

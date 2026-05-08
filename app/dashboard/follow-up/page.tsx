@@ -91,11 +91,11 @@ export default function FollowUpPage() {
       label: `${m.first_name} ${m.last_name}`,
     })) ?? [];
   const clusterOptions = [
-    { value: "", label: "All Clusters" },
+    { value: "", label: "All Departments" },
     ...(clusters?.map((c) => ({ value: c.id, label: c.name })) ?? []),
   ];
   const clusterFormOptions = [
-    { value: "", label: "No Cluster" },
+    { value: "", label: "No Department" },
     ...(clusters?.map((c) => ({ value: c.id, label: c.name })) ?? []),
   ];
   const filterStatusOptions = [
@@ -115,10 +115,10 @@ export default function FollowUpPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">
-            Cluster Follow-up
+            Department Follow-up
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Track follow-up tasks assigned to cluster leaders
+            Track follow-up tasks assigned to department leaders
           </p>
         </div>
         <Button onClick={() => setOpen(true)}>
@@ -179,7 +179,7 @@ export default function FollowUpPage() {
                   <tr>
                     {[
                       "Member",
-                      "Cluster",
+                      "Department",
                       "Assigned To",
                       "Reason",
                       "Due Date",
@@ -287,7 +287,7 @@ export default function FollowUpPage() {
               control={control}
               render={({ field }) => (
                 <Select
-                  label="Cluster"
+                  label="Department"
                   options={clusterFormOptions}
                   {...field}
                 />
