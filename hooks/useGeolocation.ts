@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   getCurrentPosition,
@@ -15,6 +15,7 @@ export function useGeolocation() {
   const [error, setError] = useState<string>();
   const [permissionState, setPermissionState] =
     useState<GeolocationPermissionState>("unsupported");
+  const requestIdRef = useRef(0);
 
   const refreshPermissionState = useCallback(async () => {
     const nextPermissionState = await getGeolocationPermissionState();
@@ -23,22 +24,29 @@ export function useGeolocation() {
   }, []);
 
   const requestPosition = useCallback(async (options?: PositionOptions) => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     setLoading(true);
     setError(undefined);
 
     try {
       const nextPosition = await getCurrentPosition(options);
-      setPosition(nextPosition);
+      if (requestId === requestIdRef.current) {
+        setPosition(nextPosition);
+      }
       await refreshPermissionState();
       return nextPosition;
     } catch (requestError) {
       const message = getGeolocationErrorMessage(requestError);
-      setPosition(null);
-      setError(message);
+      if (requestId === requestIdRef.current) {
+        setError(message);
+      }
       await refreshPermissionState();
-      throw new Error(message);
+      throw requestError instanceof Error ? requestError : new Error(message);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [refreshPermissionState]);
 
@@ -48,6 +56,42 @@ export function useGeolocation() {
 
   useEffect(() => {
     void refreshPermissionState();
+  }, [refreshPermissionState]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("permissions" in navigator)) {
+      return;
+    }
+
+    let isActive = true;
+    let permissionStatus: PermissionStatus | null = null;
+
+    const handlePermissionChange = () => {
+      if (!isActive) {
+        return;
+      }
+
+      void refreshPermissionState();
+    };
+
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((status) => {
+        if (!isActive) {
+          return;
+        }
+
+        permissionStatus = status;
+        permissionStatus.addEventListener("change", handlePermissionChange);
+      })
+      .catch(() => {
+        // Browsers that do not support the permissions API still support geolocation requests.
+      });
+
+    return () => {
+      isActive = false;
+      permissionStatus?.removeEventListener("change", handlePermissionChange);
+    };
   }, [refreshPermissionState]);
 
   return {
