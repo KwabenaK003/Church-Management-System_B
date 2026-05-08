@@ -161,6 +161,7 @@ export function CheckInPageClient() {
                 variant="secondary"
                 size="sm"
                 onClick={requestLocation}
+                disabled={locating}
               >
                 Request location again
               </Button>

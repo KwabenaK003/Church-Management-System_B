@@ -18,6 +18,59 @@ export class GeolocationRequestError extends Error {
   }
 }
 
+function requestCurrentPosition(
+  options?: PositionOptions,
+): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve(position),
+      (error) => reject(mapGeolocationError(error)),
+      options,
+    );
+  });
+}
+
+function watchCurrentPositionFallback(
+  options?: PositionOptions,
+): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    const fallbackTimeout = Math.max(options?.timeout ?? 10000, 5000);
+    let settled = false;
+
+    const finish = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      window.clearTimeout(timeoutId);
+      navigator.geolocation.clearWatch(watchId);
+      callback();
+    };
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => finish(() => resolve(position)),
+      (error) => finish(() => reject(mapGeolocationError(error))),
+      {
+        ...options,
+        enableHighAccuracy: false,
+        maximumAge: Math.max(options?.maximumAge ?? 0, 30000),
+      },
+    );
+
+    const timeoutId = window.setTimeout(() => {
+      finish(() => {
+        reject(
+          new GeolocationRequestError(
+            "timeout",
+            "Location request timed out. Please try again.",
+          ),
+        );
+      });
+    }, fallbackTimeout);
+  });
+}
+
 function mapGeolocationError(error: GeolocationPositionError) {
   switch (error.code) {
     case error.PERMISSION_DENIED:
@@ -92,11 +145,16 @@ export async function getCurrentPosition(
     );
   }
 
-  return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve(position),
-      (error) => reject(mapGeolocationError(error)),
-      options,
-    );
-  });
+  try {
+    return await requestCurrentPosition(options);
+  } catch (error) {
+    if (
+      error instanceof GeolocationRequestError &&
+      (error.code === "timeout" || error.code === "position_unavailable")
+    ) {
+      return watchCurrentPositionFallback(options);
+    }
+
+    throw error;
+  }
 }

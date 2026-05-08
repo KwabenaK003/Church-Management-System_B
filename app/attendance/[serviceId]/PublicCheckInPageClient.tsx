@@ -389,6 +389,7 @@ export function PublicCheckInPageClient({
                   variant="secondary"
                   size="sm"
                   onClick={requestLocation}
+                  disabled={locating}
                 >
                   Request location again
                 </Button>
