@@ -6,6 +6,8 @@ export type GeolocationErrorCode =
   | "timeout"
   | "unknown";
 
+export type GeolocationPermissionState = PermissionState | "unsupported";
+
 export class GeolocationRequestError extends Error {
   code: GeolocationErrorCode;
 
@@ -21,7 +23,7 @@ function mapGeolocationError(error: GeolocationPositionError) {
     case error.PERMISSION_DENIED:
       return new GeolocationRequestError(
         "permission_denied",
-        "Location access was blocked. Please allow location access to complete check-in.",
+        "Location access was blocked. Allow location in your browser, or re-enable it in site settings if it was previously denied.",
       );
     case error.POSITION_UNAVAILABLE:
       return new GeolocationRequestError(
@@ -51,6 +53,19 @@ export function getGeolocationErrorMessage(error: unknown) {
   }
 
   return "We could not read your location. Please try again.";
+}
+
+export async function getGeolocationPermissionState(): Promise<GeolocationPermissionState> {
+  if (typeof window === "undefined" || !("permissions" in navigator)) {
+    return "unsupported";
+  }
+
+  try {
+    const status = await navigator.permissions.query({ name: "geolocation" });
+    return status.state;
+  } catch {
+    return "unsupported";
+  }
 }
 
 export async function getCurrentPosition(

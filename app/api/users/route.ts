@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireApiUser } from "@/lib/api/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET() {
+  const auth = await requireApiUser();
+  if ("response" in auth) {
+    return auth.response;
+  }
+
   const { data, error } = await supabaseAdmin
     .from("app_users")
     .select("*")
@@ -11,12 +17,19 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { email, password, full_name, role } = body;
+  const auth = await requireApiUser();
+  if ("response" in auth) {
+    return auth.response;
+  }
 
-  if (!email || !password) {
+  const body = await req.json();
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  const full_name = typeof body.full_name === "string" ? body.full_name.trim() : "";
+
+  if (!full_name || !email || !password) {
     return NextResponse.json(
-      { error: "email and password are required" },
+      { error: "name, email, and password are required" },
       { status: 400 }
     );
   }
@@ -27,17 +40,29 @@ export async function POST(req: NextRequest) {
       email,
       password,
       email_confirm: true,
+      user_metadata: {
+        full_name,
+      },
     });
 
   if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
+  if (!authData.user) {
+    return NextResponse.json({ error: "User account could not be created." }, { status: 500 });
+  }
 
-  // Insert into app_users
   const { data, error } = await supabaseAdmin
     .from("app_users")
-    .insert({ id: authData.user.id, email, full_name, role })
+    .upsert(
+      { id: authData.user.id, email, full_name },
+      { onConflict: "id" },
+    )
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
   return NextResponse.json(data, { status: 201 });
 }

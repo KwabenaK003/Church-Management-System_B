@@ -18,8 +18,8 @@ type OpenService = {
 };
 
 const coordinatesSchema = {
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  latitude: z.number(),
+  longitude: z.number(),
 };
 
 const submitCheckInSchema = z.discriminatedUnion("attendeeType", [
@@ -31,7 +31,12 @@ const submitCheckInSchema = z.discriminatedUnion("attendeeType", [
   z.object({
     attendeeType: z.literal("visitor"),
     name: z.string().trim().min(1, "Name is required"),
-    email: z.string().trim().email("A valid email is required"),
+    email: z
+      .string()
+      .trim()
+      .email("A valid email is required")
+      .optional()
+      .or(z.literal("")),
     phone: z.string().trim().min(1, "Phone number is required"),
     ...coordinatesSchema,
   }),
@@ -148,7 +153,7 @@ export async function POST(request: Request, ctx: Context) {
     const { error: visitorError } = await supabaseAdmin.from("visitors").insert({
       first_name: firstName,
       last_name: lastName,
-      email: payload.email,
+      email: payload.email || undefined,
       phone: payload.phone,
       visit_date: new Date(service.service_date).toISOString().split("T")[0],
       follow_up_status: "pending",

@@ -27,7 +27,7 @@ import { SMSTarget, SMSTemplate } from "@/types";
 const TARGET_OPTIONS = [
   { value: "all_members", label: "All Members" },
   { value: "all_visitors", label: "All Visitors" },
-  { value: "cluster", label: "Specific Cluster" },
+  { value: "cluster", label: "Specific Department" },
 ];
 
 const campaignSchema = z.object({
@@ -121,11 +121,11 @@ function CampaignsTab() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input label="Campaign Name" {...register("name")} required />
           <Controller name="target" control={control} render={({ field }) => (
-            <Select label="Target Audience" options={TARGET_OPTIONS} {...field} />
+              <Select label="Target Audience" options={TARGET_OPTIONS} {...field} />
           )} />
           {targetValue === "cluster" && (
             <Controller name="cluster_id" control={control} render={({ field }) => (
-              <Select label="Select Cluster" options={clusterOptions} placeholder="Choose cluster" {...field} required />
+              <Select label="Select Department" options={clusterOptions} placeholder="Choose department" {...field} required />
             )} />
           )}
           <div>

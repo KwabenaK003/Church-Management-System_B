@@ -33,7 +33,7 @@ export const ADMIN_NAVIGATION_GROUPED: NavGroup[] = [
       { label: "Members", href: "/dashboard/members", icon: Users },
       { label: "Visitors", href: "/dashboard/visitors", icon: UsersFour },
       {
-        label: "Cluster Follow-up",
+        label: "Department Follow-up",
         href: "/dashboard/follow-up",
         icon: UsersThree,
       },
@@ -54,6 +54,7 @@ export const ADMIN_NAVIGATION_GROUPED: NavGroup[] = [
   {
     section: "SYSTEM",
     items: [
+      { label: "Users", href: "/dashboard/users", icon: UsersThree },
       { label: "Reports", href: "/dashboard/reports", icon: ChartBar },
       { label: "Settings", href: "/dashboard/settings", icon: GearSix },
     ],

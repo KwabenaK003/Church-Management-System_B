@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Church } from "@phosphor-icons/react";
 
@@ -19,6 +18,15 @@ export function LoginPageClient() {
 
   const nextPath = searchParams.get("from") || "/dashboard";
   const isConfirmed = searchParams.get("confirmed") === "1";
+  const isAccessDenied = searchParams.get("error") === "access_denied";
+
+  useEffect(() => {
+    if (!isAccessDenied) {
+      return;
+    }
+
+    supabase.auth.signOut();
+  }, [isAccessDenied]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -95,16 +103,15 @@ export function LoginPageClient() {
               </div>
             )}
 
+            {isAccessDenied && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Only users added from the dashboard users page can access the admin dashboard.
+              </div>
+            )}
+
             <Button type="submit" disabled={loading} className="w-full mt-2">
               {loading ? "Signing in..." : "Sign in"}
             </Button>
-
-            <p className="text-center text-sm text-slate-500">
-              Need an account?{" "}
-              <Link href="/signup" className="font-medium text-[var(--blue-600)] hover:text-[var(--blue-700)]">
-                Sign up
-              </Link>
-            </p>
           </form>
         </div>
       </div>

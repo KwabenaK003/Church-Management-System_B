@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createSupabaseMiddleware } from "@/lib/supabase-middleware";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -42,6 +43,28 @@ export async function proxy(request: NextRequest) {
 
   if (!user) {
     return response();
+  }
+
+  const shouldCheckDashboardAccess = pathname === "/login" || !isPublic(pathname);
+
+  if (shouldCheckDashboardAccess) {
+    const { data: appUser } = await supabaseAdmin
+      .from("app_users")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!appUser) {
+      if (pathname === "/login") {
+        return response();
+      }
+
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.searchParams.set("error", "access_denied");
+      loginUrl.searchParams.set("from", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
   if (pathname === "/login") {

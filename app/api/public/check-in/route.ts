@@ -15,8 +15,8 @@ const checkInSchema = z.object({
   member_id: z.string().uuid().optional(),
   search: z.string().trim().min(1).optional(),
   service_id: z.string().uuid(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  latitude: z.number(),
+  longitude: z.number(),
 });
 
 const CLOSED_SERVICE_CHECK_IN_ERROR = "Cannot check in to a closed service";

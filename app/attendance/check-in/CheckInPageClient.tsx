@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { Input } from "@/components/ui/Input";
@@ -40,12 +40,29 @@ export function CheckInPageClient() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string>();
-  const { position, loading: locating, requestPosition, clearError } = useGeolocation();
+  const {
+    position,
+    loading: locating,
+    error: geolocationError,
+    permissionState,
+    requestPosition,
+    clearError,
+  } = useGeolocation();
 
   const isServiceClosed = service?.status === "closed";
-  const isFormDisabled = loading || isServiceClosed || !serviceId;
+  const isFormDisabled =
+    loading || locating || isServiceClosed || !serviceId || !position;
+  const locationMessage = geolocationError
+    ? geolocationError
+    : permissionState === "denied"
+      ? "Location is blocked for this site. Enable location in your browser settings, then try again."
+      : permissionState === "prompt"
+        ? "Allow location in your browser notification to continue."
+    : locating
+      ? "Requesting your current location..."
+      : "We request your location each time this page loads.";
 
-  useEffect(() => {
+  const requestLocation = useCallback(() => {
     if (!serviceId) {
       return;
     }
@@ -55,9 +72,24 @@ export function CheckInPageClient() {
       timeout: 10000,
       maximumAge: 0,
     }).catch(() => {
-      // The browser controls whether the permission dialog appears again.
+      // The browser decides whether to show a native permission prompt again.
     });
   }, [requestPosition, serviceId]);
+
+  useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
+
+  useEffect(() => {
+    const handlePageShow = () => {
+      requestLocation();
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, [requestLocation]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -108,13 +140,40 @@ export function CheckInPageClient() {
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
         <h1 className="text-xl font-semibold text-slate-900">Event check-in</h1>
         <p className="text-sm text-slate-500">
-          Enter your name or email to check in. This page requests your current location each time it
-          opens so we can record where you are standing.
+          Enter your name or email to check in. Your current location is required before this
+          check-in can be submitted.
         </p>
         {isServiceClosed && (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
             This service is closed for check-ins.
           </p>
+        )}
+        {!position && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+            <p>{locationMessage}</p>
+            <p className="mt-1 text-xs text-amber-700">
+              If the browser prompt does not appear, use the button below. Some browsers will
+              not show the native prompt again after a previous block decision.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={requestLocation}
+              >
+                Request location again
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => window.location.reload()}
+              >
+                Refresh page
+              </Button>
+            </div>
+          </div>
         )}
         <form className="space-y-3" onSubmit={handleSubmit}>
           <Input

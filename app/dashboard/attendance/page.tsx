@@ -9,7 +9,7 @@ import {
   useAttendance,
   useAttendancePaginated,
 } from "@/lib/hooks/useAttendance";
-import { Service } from "@/types";
+import { Attendance, Service } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
@@ -52,6 +52,33 @@ const serviceSchema = z.object({
 });
 
 type ServiceFormData = z.infer<typeof serviceSchema>;
+
+function formatCoordinate(value?: number) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  return value.toFixed(5);
+}
+
+function getLocationSummary(record: Attendance) {
+  const latitude = formatCoordinate(record.latitude);
+  const longitude = formatCoordinate(record.longitude);
+
+  if (!latitude || !longitude) {
+    return null;
+  }
+
+  return `${latitude}, ${longitude}`;
+}
+
+function getMapLink(record: Attendance) {
+  if (record.latitude === undefined || record.longitude === undefined) {
+    return null;
+  }
+
+  return `https://www.google.com/maps?q=${record.latitude},${record.longitude}`;
+}
 
 export default function AttendancePage() {
   const [addOpen, setAddOpen] = useState(false);
@@ -140,11 +167,13 @@ export default function AttendancePage() {
       first_name: r.member?.first_name ?? "",
       last_name: r.member?.last_name ?? "",
       checked_in_at: r.checked_in_at,
+      location: getLocationSummary(r) ?? "",
     }));
     exportToCsv(dataToExport, `attendance-${selected?.name ?? "export"}`, [
       { key: "first_name", header: "First Name" },
       { key: "last_name", header: "Last Name" },
       { key: "checked_in_at", header: "Check-in Time" },
+      { key: "location", header: "Location" },
     ]);
   }
 
@@ -365,32 +394,59 @@ export default function AttendancePage() {
                         <th className="whitespace-nowrap px-6 py-3 text-left font-medium">
                           Name
                         </th>
+                        <th className="whitespace-nowrap px-6 py-3 text-left font-medium">
+                          Location
+                        </th>
                         <th className="whitespace-nowrap px-6 py-3 text-right font-medium">
                           Time Logged
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--border-color)]">
-                      {records.map((record) => (
-                        <tr
-                          key={record.id}
-                          className="transition-colors hover:bg-slate-50"
-                        >
-                          <td className="px-6 py-4">
-                            <Checkbox
-                              checked={isSelected(record.id)}
-                              onChange={() => toggleRow(record.id)}
-                            />
-                          </td>
-                          <td className="px-6 py-4 font-medium text-slate-900">
-                            {record.member?.first_name}{" "}
-                            {record.member?.last_name}
-                          </td>
-                          <td className="px-6 py-4 text-right text-slate-500">
-                            {format(new Date(record.checked_in_at), "h:mm a")}
-                          </td>
-                        </tr>
-                      ))}
+                      {records.map((record) => {
+                        const locationSummary = getLocationSummary(record);
+                        const mapLink = getMapLink(record);
+
+                        return (
+                          <tr
+                            key={record.id}
+                            className="transition-colors hover:bg-slate-50"
+                          >
+                            <td className="px-6 py-4">
+                              <Checkbox
+                                checked={isSelected(record.id)}
+                                onChange={() => toggleRow(record.id)}
+                              />
+                            </td>
+                            <td className="px-6 py-4 font-medium text-slate-900">
+                              {record.member?.first_name}{" "}
+                              {record.member?.last_name}
+                            </td>
+                            <td className="px-6 py-4 text-slate-500">
+                              {locationSummary ? (
+                                <div className="space-y-1">
+                                  <p className="whitespace-nowrap">{locationSummary}</p>
+                                  {mapLink && (
+                                    <a
+                                      href={mapLink}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs font-medium text-[var(--blue-600)] hover:text-[var(--blue-700)]"
+                                    >
+                                      View map
+                                    </a>
+                                  )}
+                                </div>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right text-slate-500">
+                              {format(new Date(record.checked_in_at), "h:mm a")}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
