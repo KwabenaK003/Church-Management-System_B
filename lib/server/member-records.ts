@@ -28,6 +28,101 @@ function normalizeOptionalString(value: unknown) {
   return trimmed ? trimmed : undefined;
 }
 
+async function resolveClusterId(value: unknown) {
+  const normalizedValue = normalizeOptionalString(value);
+
+  if (!normalizedValue) {
+    return undefined;
+  }
+
+  if (!normalizedValue.startsWith("name:")) {
+    return normalizedValue;
+  }
+
+  const departmentName = normalizeOptionalString(normalizedValue.slice(5));
+
+  if (!departmentName) {
+    return undefined;
+  }
+
+  const { data: existingCluster, error: existingClusterError } =
+    await supabaseAdmin
+      .from("clusters")
+      .select("id")
+      .ilike("name", departmentName)
+      .maybeSingle();
+
+  if (existingClusterError) {
+    throw new Error(existingClusterError.message);
+  }
+
+  if (existingCluster) {
+    return existingCluster.id;
+  }
+
+  const { data: newCluster, error: newClusterError } = await supabaseAdmin
+    .from("clusters")
+    .insert({ name: departmentName })
+    .select("id")
+    .single();
+
+  if (newClusterError) {
+    throw new Error(newClusterError.message);
+  }
+
+  return newCluster.id;
+}
+
+export async function normalizeMemberFields(
+  memberFields: Record<string, unknown>,
+) {
+  const normalizedFields = {
+    ...memberFields,
+  };
+
+  const optionalStringFields = [
+    "email",
+    "phone",
+    "gender",
+    "address",
+    "occupation",
+    "other_names",
+    "notes",
+    "profile_photo_url",
+  ] as const;
+  const optionalDateFields = [
+    "date_of_birth",
+    "baptism_date",
+    "join_date",
+  ] as const;
+
+  for (const field of optionalStringFields) {
+    if (Object.prototype.hasOwnProperty.call(normalizedFields, field)) {
+      normalizedFields[field] = normalizeOptionalString(normalizedFields[field]);
+    }
+  }
+
+  for (const field of optionalDateFields) {
+    if (Object.prototype.hasOwnProperty.call(normalizedFields, field)) {
+      normalizedFields[field] = normalizeOptionalString(normalizedFields[field]);
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(normalizedFields, "marital_status")) {
+    normalizedFields.marital_status = normalizeOptionalString(
+      normalizedFields.marital_status,
+    );
+  }
+
+  if (Object.prototype.hasOwnProperty.call(normalizedFields, "cluster_id")) {
+    normalizedFields.cluster_id = await resolveClusterId(
+      normalizedFields.cluster_id,
+    );
+  }
+
+  return normalizedFields;
+}
+
 export function splitEmergencyContactFields<T extends EmergencyContactFields & Record<string, unknown>>(
   payload: T,
 ) {

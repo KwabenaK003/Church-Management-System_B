@@ -33,14 +33,39 @@ export async function createSmsCampaign(payload: Partial<SMSCampaign>): Promise<
   return data as SMSCampaign;
 }
 
+export async function updateSmsCampaign(
+  id: string,
+  payload: Partial<SMSCampaign>,
+): Promise<SMSCampaign> {
+  const { data, error } = await supabase
+    .from("sms_campaigns")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as SMSCampaign;
+}
+
+export async function deleteSmsCampaign(id: string): Promise<void> {
+  const { error } = await supabase.from("sms_campaigns").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function getSmsCampaignsPaginated(params: {
+  search?: string;
   page: number;
   rowsPerPage: number;
 }): Promise<{ data: SMSCampaign[]; count: number }> {
-  const query = supabase
+  let query = supabase
     .from("sms_campaigns")
     .select("*, cluster:clusters(id,name)", { count: "exact" })
     .order("created_at", { ascending: false });
+
+  if (params.search?.trim()) {
+    const search = params.search.trim();
+    query = query.or(`name.ilike.%${search}%,message.ilike.%${search}%`);
+  }
 
   const from = (params.page - 1) * params.rowsPerPage;
   const { data, error, count } = await query.range(from, from + params.rowsPerPage - 1);

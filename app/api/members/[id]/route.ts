@@ -10,12 +10,14 @@ import {
 } from "@/lib/api/server";
 import {
   getMemberWithRelations,
+  normalizeMemberFields,
   splitEmergencyContactFields,
   syncMemberEmergencyContact,
 } from "@/lib/server/member-records";
 
 const updateMemberSchema = z.object({
   first_name: z.string().min(1).optional(),
+  other_names: z.string().optional(),
   last_name: z.string().min(1).optional(),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
@@ -23,12 +25,17 @@ const updateMemberSchema = z.object({
   date_of_birth: z.string().optional(),
   address: z.string().optional(),
   occupation: z.string().optional(),
-  marital_status: z.enum(["single", "married", "widowed", "divorced"]).optional(),
+  marital_status: z
+    .enum(["single", "married", "widowed", "divorced"])
+    .optional()
+    .or(z.literal("")),
   baptism_date: z.string().optional(),
   membership_status: z
     .enum(["active", "inactive", "transferred", "deceased"])
     .optional(),
-  cluster_id: z.string().uuid().optional().or(z.literal("")),
+  cluster_id: z
+    .union([z.string().uuid(), z.string().startsWith("name:"), z.literal("")])
+    .optional(),
   join_date: z.string().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
@@ -73,11 +80,7 @@ export async function PATCH(
     const payload = await parseJson(request, updateMemberSchema);
     const { hasEmergencyContactFields, memberFields, emergencyContact } =
       splitEmergencyContactFields(payload);
-    const updates = {
-      ...memberFields,
-      email: payload.email || undefined,
-      cluster_id: payload.cluster_id || undefined,
-    };
+    const updates = await normalizeMemberFields(memberFields);
 
     const { data, error } = await supabaseAdmin
       .from("members")

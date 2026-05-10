@@ -18,6 +18,7 @@ import { ArrowLeft, Pencil, CalendarCheck, User } from "@phosphor-icons/react";
 import { MaritalStatus, MembershipStatus, Member } from "@/types";
 import { useForm, Controller } from "react-hook-form";
 import { format } from "date-fns";
+import { buildDepartmentOptions } from "@/lib/constants/departments";
 
 const statusBadge: Record<MembershipStatus, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -96,14 +97,15 @@ export default function MemberDetailPage() {
   }
 
   async function onSubmit(data: Partial<Member>) {
-    await updateMember.mutateAsync({ id, ...data });
+    await updateMember.mutateAsync({
+      id,
+      ...data,
+      marital_status: data.marital_status || undefined,
+    });
     setEditOpen(false);
   }
 
-  const clusterOptions = [
-    { value: "", label: "No department" },
-    ...(clusters?.map((c) => ({ value: c.id, label: c.name })) ?? []),
-  ];
+  const clusterOptions = buildDepartmentOptions(clusters, "No department");
 
   if (isLoading) {
     return (
@@ -227,7 +229,7 @@ export default function MemberDetailPage() {
       {/* Edit Modal */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Member" size="lg">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="First Name" {...register("first_name")} required />
             <Input label="Last Name" {...register("last_name")} required />
           </div>

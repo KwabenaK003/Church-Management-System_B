@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get("campaignId");
+    const search = searchParams.get("search")?.trim().toLowerCase();
     const pageParam = searchParams.get("page");
     const rowsPerPageParam = searchParams.get("rowsPerPage");
 
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
       query = query.eq("campaign_id", campaignId);
     }
 
-    if (pageParam && rowsPerPageParam) {
+    if (pageParam && rowsPerPageParam && !search) {
       const page = parseNumberParam(pageParam, 1);
       const rowsPerPage = parseNumberParam(rowsPerPageParam, 10);
       const from = (page - 1) * rowsPerPage;
@@ -54,6 +55,32 @@ export async function GET(request: Request) {
     }
 
     if (pageParam && rowsPerPageParam) {
+      const page = parseNumberParam(pageParam, 1);
+      const rowsPerPage = parseNumberParam(rowsPerPageParam, 10);
+      const filteredData = search
+        ? (data ?? []).filter((pledge) => {
+            const memberName = pledge.member
+              ? `${pledge.member.first_name ?? ""} ${pledge.member.last_name ?? ""}`.trim()
+              : "";
+            const haystack = [
+              memberName,
+              pledge.campaign?.name ?? "",
+              pledge.status ?? "",
+              pledge.notes ?? "",
+            ]
+              .join(" ")
+              .toLowerCase();
+
+            return haystack.includes(search);
+          })
+        : (data ?? []);
+
+      if (search) {
+        const from = (page - 1) * rowsPerPage;
+        const paginatedData = filteredData.slice(from, from + rowsPerPage);
+        return jsonSuccess({ data: paginatedData, count: filteredData.length });
+      }
+
       return jsonSuccess({ data: data ?? [], count: count ?? 0 });
     }
 

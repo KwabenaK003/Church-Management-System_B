@@ -39,6 +39,7 @@ import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { CsvUpload } from "@/components/members/CsvUpload";
 import { usePersistentTableSelection } from "@/lib/hooks/usePersistentTableSelection";
+import { buildDepartmentOptions } from "@/lib/constants/departments";
 
 const memberSchema = z.object({
   first_name: z.string().min(1, "First name required"),
@@ -51,7 +52,8 @@ const memberSchema = z.object({
   occupation: z.string().optional(),
   marital_status: z
     .enum(["single", "married", "widowed", "divorced"] as const)
-    .optional(),
+    .optional()
+    .or(z.literal("")),
   baptism_date: z.string().optional(),
   membership_status: z.enum([
     "active",
@@ -157,16 +159,18 @@ export default function MembersPage() {
   async function onSubmit(data: MemberFormData) {
     await createMember.mutateAsync({
       ...data,
+      marital_status: data.marital_status || undefined,
       join_date: data.join_date || new Date().toISOString().split("T")[0],
     });
     reset();
     setAddOpen(false);
   }
 
-  const clusterOptions = [
-    { value: "", label: "No department" },
-    ...(clusters?.map((c) => ({ value: c.id, label: c.name })) ?? []),
-  ];
+  const clusterFilterOptions = buildDepartmentOptions(
+    clusters,
+    "All Departments",
+  );
+  const clusterOptions = buildDepartmentOptions(clusters, "No department");
 
   function handleExport() {
     const dataToExport = members.map((m) => ({
@@ -250,10 +254,9 @@ export default function MembersPage() {
           }}
           className="border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
         >
-          <option value="">All Departments</option>
-          {(clusters ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
+          {clusterFilterOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
@@ -415,7 +418,7 @@ export default function MembersPage() {
         size="lg"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="First Name"
               {...register("first_name")}

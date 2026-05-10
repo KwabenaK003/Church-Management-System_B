@@ -21,7 +21,12 @@ import { Plus, Desktop, Pencil, Trash, MagnifyingGlass, Export } from "@phosphor
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format } from "date-fns";
+
+const DEFAULT_ASSET_CATEGORIES = ["equipment", "inventory", "machinery"];
+
+function formatAssetCategoryLabel(category: string) {
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
 
 const CONDITIONS: { value: EquipmentCondition; label: string }[] = [
   { value: "excellent", label: "Excellent" },
@@ -71,6 +76,9 @@ export default function EquipmentPage() {
     categoryFilter || undefined,
   );
   const { data: categories } = useEquipmentCategories();
+  const assetCategories = Array.from(
+    new Set([...(categories ?? []), ...DEFAULT_ASSET_CATEGORIES]),
+  ).sort((left, right) => left.localeCompare(right));
   const equipment = equipmentData?.data ?? [];
   const totalCount = equipmentData?.count ?? 0;
   const {
@@ -150,12 +158,12 @@ export default function EquipmentPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Equipment</h1>
+          <h1 className="text-xl font-semibold text-slate-900">Assets</h1>
           <p className="text-sm text-slate-500 mt-0.5">{totalCount} items recorded</p>
         </div>
         <Button onClick={() => { setEditing(null); reset({ condition: "good" }); setOpen(true); }}>
           <Plus size={16} />
-          Add Equipment
+          Add Asset
         </Button>
       </div>
 
@@ -168,7 +176,7 @@ export default function EquipmentPage() {
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Search equipment..."
+            placeholder="Search assets..."
             className="w-full pl-9 pr-3 py-2 text-sm border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
           />
         </div>
@@ -192,8 +200,8 @@ export default function EquipmentPage() {
           className="border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm bg-white"
         >
           <option value="">All Categories</option>
-          {(categories ?? []).map((c) => (
-            <option key={c} value={c}>{c}</option>
+          {assetCategories.map((c) => (
+            <option key={c} value={c}>{formatAssetCategoryLabel(c)}</option>
           ))}
         </select>
         <Button variant="secondary" onClick={handleExport} disabled={equipment.length === 0}>
@@ -211,7 +219,7 @@ export default function EquipmentPage() {
         {isLoading ? (
           <div className="flex justify-center items-center h-48"><Spinner size={24} className="text-[var(--blue-600)]" /></div>
         ) : totalCount === 0 ? (
-          <EmptyState icon={<Desktop size={24} />} title="No equipment recorded" description="Add your first item to get started." />
+          <EmptyState icon={<Desktop size={24} />} title="No assets recorded" description="Add your first asset to get started." />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -273,11 +281,11 @@ export default function EquipmentPage() {
         )}
       </div>
 
-      <Modal open={open} onClose={() => { setOpen(false); setEditing(null); reset(); }} title={editing ? "Edit Equipment" : "Add Equipment"} size="lg">
+      <Modal open={open} onClose={() => { setOpen(false); setEditing(null); reset(); }} title={editing ? "Edit Asset" : "Add Asset"} size="lg">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input label="Name" {...register("name")} error={errors.name?.message} required />
-            <Input label="Category" {...register("category")} placeholder="e.g. Audio, Furniture" />
+            <Input label="Category" {...register("category")} placeholder="e.g. equipment, inventory, machinery" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Serial Number" {...register("serial_number")} />
@@ -297,7 +305,7 @@ export default function EquipmentPage() {
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" type="button" onClick={() => { setOpen(false); setEditing(null); reset(); }}>Cancel</Button>
             <Button type="submit" disabled={createEquipment.isPending || updateEquipment.isPending}>
-              {(createEquipment.isPending || updateEquipment.isPending) ? "Saving..." : editing ? "Save Changes" : "Add Equipment"}
+              {(createEquipment.isPending || updateEquipment.isPending) ? "Saving..." : editing ? "Save Changes" : "Add Asset"}
             </Button>
           </div>
         </form>

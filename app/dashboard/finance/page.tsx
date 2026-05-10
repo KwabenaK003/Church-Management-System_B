@@ -5,6 +5,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Textarea } from "@/components/ui/Textarea";
 import { Modal } from "@/components/ui/Modal";
 import { Badge } from "@/components/ui/Badge";
@@ -25,7 +26,7 @@ import {
   useExpenseCategories,
 } from "@/lib/hooks/useFinance";
 import { useMembers } from "@/lib/hooks/useMembers";
-import { Plus, CurrencyDollar, Handshake, Receipt, ChartBar } from "@phosphor-icons/react";
+import { Plus, CurrencyDollar, Handshake, Receipt, MagnifyingGlass } from "@phosphor-icons/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -60,13 +61,15 @@ const donationSchema = z.object({
 
 function DonationsTab() {
   const [addOpen, setAddOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const year: number | undefined = undefined;
   const month: number | undefined = undefined;
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const { data, isLoading } = useDonationsPaginated(year, month, page, rowsPerPage);
+  const { data, isLoading } = useDonationsPaginated(year, month, search, page, rowsPerPage);
   const { data: categories } = useDonationCategories();
   const { data: members } = useMembers();
+  const showMemberSearch = (members?.length ?? 0) > 10;
   const createDonation = useCreateDonation();
   const { register, handleSubmit, reset, control, formState: { errors } } = useForm({ resolver: zodResolver(donationSchema) });
 
@@ -96,6 +99,22 @@ function DonationsTab() {
           <p className="text-2xl font-bold text-slate-900 mt-1">GHS {total.toLocaleString("en", { minimumFractionDigits: 2 })}</p>
         </div>
         <Button onClick={() => setAddOpen(true)}><Plus size={16} />Record Donation</Button>
+      </div>
+
+      <div className="relative min-w-[220px]">
+        <MagnifyingGlass
+          size={16}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+        />
+        <input
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Search donations..."
+          className="w-full rounded-lg border border-[var(--border-color)] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+        />
       </div>
 
       <div className="bg-white border border-[var(--border-color)] rounded-xl overflow-hidden">
@@ -137,7 +156,7 @@ function DonationsTab() {
 
       <Modal open={addOpen} onClose={() => { setAddOpen(false); reset(); }} title="Record Donation">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Controller name="member_id" control={control} render={({ field }) => <Select label="Member" options={memberOptions} {...field} />} />
+          <Controller name="member_id" control={control} render={({ field }) => <SearchableSelect label="Member" options={memberOptions} showSearch={showMemberSearch} searchPlaceholder="Search members..." {...field} />} />
           <Input label="Donor Name (if not a member)" {...register("donor_name")} />
           <div className="grid grid-cols-2 gap-4">
             <Controller name="category_id" control={control} render={({ field }) => <Select label="Category" options={categoryOptions} placeholder="Select category" {...field} />} />
@@ -171,11 +190,12 @@ const expenseSchema = z.object({
 
 function ExpensesTab() {
   const [addOpen, setAddOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const year: number | undefined = undefined;
   const month: number | undefined = undefined;
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const { data, isLoading } = useExpensesPaginated(year, month, page, rowsPerPage);
+  const { data, isLoading } = useExpensesPaginated(year, month, search, page, rowsPerPage);
   const { data: categories } = useExpenseCategories();
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
@@ -200,6 +220,22 @@ function ExpensesTab() {
     <div className="space-y-4">
       <div className="flex justify-end">
         <Button onClick={() => setAddOpen(true)}><Plus size={16} />Record Expense</Button>
+      </div>
+
+      <div className="relative min-w-[220px]">
+        <MagnifyingGlass
+          size={16}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+        />
+        <input
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Search expenses..."
+          className="w-full rounded-lg border border-[var(--border-color)] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+        />
       </div>
 
       <div className="bg-white border border-[var(--border-color)] rounded-xl overflow-hidden">
@@ -273,11 +309,13 @@ function PledgesTab() {
   const [addCampaignOpen, setAddCampaignOpen] = useState(false);
   const [addPledgeOpen, setAddPledgeOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState("");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const { data: campaigns } = usePledgeCampaigns();
-  const { data } = usePledgesPaginated(selectedCampaign || undefined, page, rowsPerPage);
+  const { data } = usePledgesPaginated(selectedCampaign || undefined, search, page, rowsPerPage);
   const { data: members } = useMembers();
+  const showMemberSearch = (members?.length ?? 0) > 10;
   const createCampaign = useCreatePledgeCampaign();
   const createPledge = useCreatePledge();
 
@@ -312,6 +350,21 @@ function PledgesTab() {
           className="border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm bg-white">
           {campaignOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        <div className="relative min-w-[220px] flex-1">
+          <MagnifyingGlass
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+          />
+          <input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+            placeholder="Search pledges..."
+            className="w-full rounded-lg border border-[var(--border-color)] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
         <Button variant="secondary" size="sm" onClick={() => setAddCampaignOpen(true)}><Plus size={14} />New Campaign</Button>
         {selectedCampaign && <Button size="sm" onClick={() => setAddPledgeOpen(true)}><Plus size={14} />Add Pledge</Button>}
       </div>
@@ -365,7 +418,7 @@ function PledgesTab() {
 
       <Modal open={addPledgeOpen} onClose={() => setAddPledgeOpen(false)} title="Add Pledge">
         <form onSubmit={pledgeForm.handleSubmit(onPledgeSubmit)} className="space-y-4">
-          <Controller name="member_id" control={pledgeForm.control} render={({ field }) => <Select label="Member" options={memberOptions} placeholder="Select member" {...field} required />} />
+          <Controller name="member_id" control={pledgeForm.control} render={({ field }) => <SearchableSelect label="Member" options={memberOptions} placeholder="Select member" showSearch={showMemberSearch} searchPlaceholder="Search members..." {...field} required />} />
           <Input label="Pledged Amount (GHS)" type="number" {...pledgeForm.register("pledged_amount")} required />
           <Input label="Due Date" type="date" {...pledgeForm.register("due_date")} />
           <div className="flex justify-end gap-3"><Button variant="secondary" type="button" onClick={() => setAddPledgeOpen(false)}>Cancel</Button><Button type="submit">Save Pledge</Button></div>

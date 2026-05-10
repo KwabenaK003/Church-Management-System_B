@@ -135,26 +135,43 @@ export function useUpdateExpense() {
   });
 }
 
-export function useDonationsPaginated(year?: number, month?: number, page = 1, rowsPerPage = 10) {
+export function useDonationsPaginated(
+  year?: number,
+  month?: number,
+  search = "",
+  page = 1,
+  rowsPerPage = 10,
+) {
   return useQuery({
-    queryKey: [...DONATIONS_KEY, "paginated", year, month, page, rowsPerPage],
-    queryFn: () => getDonationsPaginated({ year, month, page, rowsPerPage }),
+    queryKey: [...DONATIONS_KEY, "paginated", year, month, search, page, rowsPerPage],
+    queryFn: () => getDonationsPaginated({ year, month, search, page, rowsPerPage }),
     placeholderData: keepPreviousData,
   });
 }
 
-export function useExpensesPaginated(year?: number, month?: number, page = 1, rowsPerPage = 10) {
+export function useExpensesPaginated(
+  year?: number,
+  month?: number,
+  search = "",
+  page = 1,
+  rowsPerPage = 10,
+) {
   return useQuery({
-    queryKey: [...EXPENSES_KEY, "paginated", year, month, page, rowsPerPage],
-    queryFn: () => getExpensesPaginated({ year, month, page, rowsPerPage }),
+    queryKey: [...EXPENSES_KEY, "paginated", year, month, search, page, rowsPerPage],
+    queryFn: () => getExpensesPaginated({ year, month, search, page, rowsPerPage }),
     placeholderData: keepPreviousData,
   });
 }
 
-export function usePledgesPaginated(campaignId?: string, page = 1, rowsPerPage = 10) {
+export function usePledgesPaginated(
+  campaignId?: string,
+  search = "",
+  page = 1,
+  rowsPerPage = 10,
+) {
   return useQuery({
-    queryKey: [...PLEDGES_KEY, "paginated", campaignId, page, rowsPerPage],
-    queryFn: () => getPledgesPaginated({ campaignId, page, rowsPerPage }),
+    queryKey: [...PLEDGES_KEY, "paginated", campaignId, search, page, rowsPerPage],
+    queryFn: () => getPledgesPaginated({ campaignId, search, page, rowsPerPage }),
     placeholderData: keepPreviousData,
   });
 }

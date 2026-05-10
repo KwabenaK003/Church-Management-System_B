@@ -10,12 +10,14 @@ import {
 } from "@/lib/api/server";
 import {
   getMemberWithRelations,
+  normalizeMemberFields,
   splitEmergencyContactFields,
   syncMemberEmergencyContact,
 } from "@/lib/server/member-records";
 
 const memberSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
+  other_names: z.string().optional(),
   last_name: z.string().min(1, "Last name is required"),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
@@ -23,18 +25,47 @@ const memberSchema = z.object({
   date_of_birth: z.string().optional(),
   address: z.string().optional(),
   occupation: z.string().optional(),
-  marital_status: z.enum(["single", "married", "widowed", "divorced"]).optional(),
+  marital_status: z
+    .enum(["single", "married", "widowed", "divorced"])
+    .optional()
+    .or(z.literal("")),
   baptism_date: z.string().optional(),
   membership_status: z
     .enum(["active", "inactive", "transferred", "deceased"])
     .optional(),
-  cluster_id: z.string().uuid().optional().or(z.literal("")),
+  cluster_id: z
+    .union([z.string().uuid(), z.string().startsWith("name:"), z.literal("")])
+    .optional(),
   join_date: z.string().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
   emergency_contact_relationship: z.string().optional(),
   notes: z.string().optional(),
 });
+
+async function resolveClusterFilterId(clusterId: string) {
+  if (!clusterId.startsWith("name:")) {
+    return clusterId;
+  }
+
+  const departmentName = clusterId.slice(5).trim();
+
+  if (!departmentName) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("clusters")
+    .select("id")
+    .ilike("name", departmentName)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data?.id ?? null;
+}
 
 export async function GET(request: Request) {
   const auth = await requireApiUser();
@@ -65,7 +96,17 @@ export async function GET(request: Request) {
       query = query.eq("membership_status", status);
     }
     if (clusterId) {
-      query = query.eq("cluster_id", clusterId);
+      const resolvedClusterId = await resolveClusterFilterId(clusterId);
+
+      if (!resolvedClusterId) {
+        if (page && rowsPerPage) {
+          return jsonSuccess({ data: [], count: 0 });
+        }
+
+        return jsonSuccess([]);
+      }
+
+      query = query.eq("cluster_id", resolvedClusterId);
     }
     if (gender) {
       query = query.eq("gender", gender);
@@ -101,13 +142,15 @@ export async function POST(request: Request) {
 
   try {
     const payload = await parseJson(request, memberSchema);
-    const { memberFields, emergencyContact } = splitEmergencyContactFields(payload);
+    const { memberFields, emergencyContact } =
+      splitEmergencyContactFields(payload);
+    const normalizedMemberFields = await normalizeMemberFields(memberFields);
     const row = {
-      ...memberFields,
-      email: payload.email || undefined,
-      cluster_id: payload.cluster_id || undefined,
+      ...normalizedMemberFields,
       membership_status: payload.membership_status ?? "active",
-      join_date: payload.join_date || new Date().toISOString().split("T")[0],
+      join_date:
+        normalizedMemberFields.join_date ??
+        new Date().toISOString().split("T")[0],
     };
 
     const { data, error } = await supabaseAdmin

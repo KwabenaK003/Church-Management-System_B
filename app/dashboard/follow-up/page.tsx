@@ -5,24 +5,31 @@ import {
   useFollowUpTasksPaginated,
   useCreateFollowUpTask,
   useUpdateFollowUpTask,
+  useDeleteFollowUpTask,
 } from "@/lib/hooks/useFollowUp";
 import { useClusters } from "@/lib/hooks/useClusters";
 import { useMembers } from "@/lib/hooks/useMembers";
-import { FollowUpTaskStatus } from "@/types";
+import { FollowUpTask, FollowUpTaskStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
-import { Plus, UsersThree } from "@phosphor-icons/react";
+import { DeleteConfirmModal } from "@/components/ui/DeleteConfirmModal";
+import { Pencil, Plus, Trash, UsersThree } from "@phosphor-icons/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
+import {
+  DEFAULT_DEPARTMENT_NAMES,
+  getDepartmentLabel,
+} from "@/lib/constants/departments";
 
 const statusBadge: Record<
   FollowUpTaskStatus,
@@ -56,6 +63,8 @@ export default function FollowUpPage() {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [open, setOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<FollowUpTask | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FollowUpTask | null>(null);
 
   const { data: tasksData, isLoading } = useFollowUpTasksPaginated(
     clusterFilter || undefined,
@@ -67,8 +76,10 @@ export default function FollowUpPage() {
   const totalCount = tasksData?.count ?? 0;
   const { data: clusters } = useClusters();
   const { data: members } = useMembers();
+  const showMemberSearch = (members?.length ?? 0) > 10;
   const createTask = useCreateFollowUpTask();
   const updateTask = useUpdateFollowUpTask();
+  const deleteTask = useDeleteFollowUpTask();
 
   const {
     register,
@@ -90,28 +101,90 @@ export default function FollowUpPage() {
       value: `${m.first_name} ${m.last_name}`,
       label: `${m.first_name} ${m.last_name}`,
     })) ?? [];
+  const existingClusterNames = new Set(
+    (clusters ?? []).map((cluster) => cluster.name.trim().toLowerCase()),
+  );
   const clusterOptions = [
     { value: "", label: "All Departments" },
-    ...(clusters?.map((c) => ({ value: c.id, label: c.name })) ?? []),
+    ...(clusters?.map((c) => ({
+      value: c.id,
+      label: getDepartmentLabel(c.name),
+    })) ?? []),
+    ...DEFAULT_DEPARTMENT_NAMES.filter(
+      (department) => !existingClusterNames.has(department.trim().toLowerCase()),
+    ).map((department) => ({
+      value: `name:${department}`,
+      label: department,
+    })),
   ];
   const clusterFormOptions = [
     { value: "", label: "No Department" },
-    ...(clusters?.map((c) => ({ value: c.id, label: c.name })) ?? []),
+    ...(clusters?.map((c) => ({
+      value: c.id,
+      label: getDepartmentLabel(c.name),
+    })) ?? []),
+    ...DEFAULT_DEPARTMENT_NAMES.filter(
+      (department) => !existingClusterNames.has(department.trim().toLowerCase()),
+    ).map((department) => ({
+      value: `name:${department}`,
+      label: department,
+    })),
   ];
   const filterStatusOptions = [
     { value: "", label: "All Statuses" },
     ...STATUS_OPTIONS,
   ];
 
+  function openCreateFollowUp() {
+    setEditingTask(null);
+    reset({
+      member_id: "",
+      cluster_id: "",
+      assigned_to: "",
+      reason: "",
+      due_date: "",
+      notes: "",
+    });
+    setOpen(true);
+  }
+
+  function openEditFollowUp(task: FollowUpTask) {
+    setEditingTask(task);
+    reset({
+      member_id: task.member_id,
+      cluster_id: task.cluster_id ?? "",
+      assigned_to: task.assigned_to,
+      reason: task.reason,
+      due_date: task.due_date ?? "",
+      notes: task.notes ?? "",
+    });
+    setOpen(true);
+  }
+
   async function onSubmit(data: any) {
-    await createTask.mutateAsync({ ...data });
+    const payload = {
+      ...data,
+      cluster_id:
+        typeof data.cluster_id === "string" && data.cluster_id.startsWith("name:")
+          ? undefined
+          : data.cluster_id || undefined,
+    };
+
+    if (editingTask) {
+      await updateTask.mutateAsync({
+        id: editingTask.id,
+        ...payload,
+      });
+    } else {
+      await createTask.mutateAsync(payload);
+    }
     reset();
     setOpen(false);
+    setEditingTask(null);
   }
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">
@@ -121,13 +194,12 @@ export default function FollowUpPage() {
             Track follow-up tasks assigned to department leaders
           </p>
         </div>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={openCreateFollowUp}>
           <Plus size={16} />
-          New Task
+          New Follow-up
         </Button>
       </div>
 
-      {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <select
           value={clusterFilter}
@@ -159,7 +231,6 @@ export default function FollowUpPage() {
         </select>
       </div>
 
-      {/* Table */}
       <div className="bg-white border border-[var(--border-color)] rounded-xl overflow-hidden">
         {isLoading ? (
           <div className="flex justify-center items-center h-48">
@@ -168,8 +239,8 @@ export default function FollowUpPage() {
         ) : tasks.length === 0 ? (
           <EmptyState
             icon={<UsersThree size={24} />}
-            title="No follow-up tasks"
-            description="Create a task to start tracking member follow-ups."
+            title="No follow-ups"
+            description="Create a follow-up to start tracking member follow-ups."
           />
         ) : (
           <>
@@ -202,7 +273,9 @@ export default function FollowUpPage() {
                         {t.member?.first_name} {t.member?.last_name}
                       </td>
                       <td className="px-5 py-3 text-slate-500">
-                        {t.cluster?.name ?? "—"}
+                        {t.cluster?.name
+                          ? getDepartmentLabel(t.cluster.name)
+                          : "—"}
                       </td>
                       <td className="px-5 py-3 text-slate-500">
                         {t.assigned_to}
@@ -221,22 +294,41 @@ export default function FollowUpPage() {
                         </Badge>
                       </td>
                       <td className="px-5 py-3 sticky-col-last">
-                        <select
-                          value={t.status}
-                          onChange={(e) =>
-                            updateTask.mutate({
-                              id: t.id,
-                              status: e.target.value as FollowUpTaskStatus,
-                            })
-                          }
-                          className="text-xs border border-[var(--border-color)] rounded px-2 py-1 bg-white"
-                        >
-                          {STATUS_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={t.status}
+                            onChange={(e) =>
+                              updateTask.mutate({
+                                id: t.id,
+                                status: e.target.value as FollowUpTaskStatus,
+                              })
+                            }
+                            className="text-xs border border-[var(--border-color)] rounded px-2 py-1 bg-white"
+                          >
+                            {STATUS_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditFollowUp(t)}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                            onClick={() => setDeleteTarget(t)}
+                          >
+                            <Trash size={14} />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -261,9 +353,10 @@ export default function FollowUpPage() {
         open={open}
         onClose={() => {
           setOpen(false);
+          setEditingTask(null);
           reset();
         }}
-        title="New Follow-up Task"
+        title={editingTask ? "Edit Follow-up" : "New Follow-up"}
         size="lg"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -271,10 +364,12 @@ export default function FollowUpPage() {
             name="member_id"
             control={control}
             render={({ field }) => (
-              <Select
+              <SearchableSelect
                 label="Member"
                 options={memberOptions}
                 placeholder="Select member"
+                showSearch={showMemberSearch}
+                searchPlaceholder="Search members..."
                 required
                 {...field}
                 error={errors.member_id?.message as string | undefined}
@@ -297,10 +392,12 @@ export default function FollowUpPage() {
               name="assigned_to"
               control={control}
               render={({ field }) => (
-                <Select
+                <SearchableSelect
                   label="Assigned To"
                   options={assignedToOptions}
                   placeholder="Select member"
+                  showSearch={showMemberSearch}
+                  searchPlaceholder="Search members..."
                   required
                   {...field}
                   error={errors.assigned_to?.message as string | undefined}
@@ -322,17 +419,41 @@ export default function FollowUpPage() {
               type="button"
               onClick={() => {
                 setOpen(false);
+                setEditingTask(null);
                 reset();
               }}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={createTask.isPending}>
-              {createTask.isPending ? "Saving..." : "Create Task"}
+            <Button
+              type="submit"
+              disabled={createTask.isPending || updateTask.isPending}
+            >
+              {createTask.isPending || updateTask.isPending
+                ? "Saving..."
+                : editingTask
+                  ? "Save Changes"
+                  : "Create Follow-up"}
             </Button>
           </div>
         </form>
       </Modal>
+
+      <DeleteConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (!deleteTarget) {
+            return;
+          }
+
+          return deleteTask.mutateAsync(deleteTarget.id).then(() => {
+            setDeleteTarget(null);
+          });
+        }}
+        description={`Are you sure you want to delete the follow-up task for "${deleteTarget?.member?.first_name ?? ""} ${deleteTarget?.member?.last_name ?? ""}"? This action cannot be undone.`}
+        isPending={deleteTask.isPending}
+      />
     </div>
   );
 }
