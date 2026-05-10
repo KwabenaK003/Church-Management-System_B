@@ -1,14 +1,42 @@
 import { supabase } from "@/lib/supabase";
 import { FollowUpTask } from "@/types";
 
+async function resolveClusterFilter(clusterFilter?: string) {
+  if (!clusterFilter) {
+    return undefined;
+  }
+
+  if (!clusterFilter.startsWith("name:")) {
+    return clusterFilter;
+  }
+
+  const clusterName = clusterFilter.slice(5);
+  const { data, error } = await supabase
+    .from("clusters")
+    .select("id")
+    .ilike("name", clusterName)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data?.id ?? null;
+}
+
 export async function getFollowUpTasks(clusterId?: string, status?: string): Promise<FollowUpTask[]> {
+  const resolvedClusterId = await resolveClusterFilter(clusterId);
+  if (resolvedClusterId === null) {
+    return [];
+  }
+
   let query = supabase
     .from("follow_up_tasks")
     .select("*, member:members(id,first_name,last_name), cluster:clusters(id,name)")
     .order("created_at", { ascending: false });
 
-  if (clusterId) {
-    query = query.eq("cluster_id", clusterId);
+  if (resolvedClusterId) {
+    query = query.eq("cluster_id", resolvedClusterId);
   }
   if (status) {
     query = query.eq("status", status);
@@ -52,19 +80,32 @@ export async function updateFollowUpTask(id: string, payload: Partial<FollowUpTa
   return data as FollowUpTask;
 }
 
+export async function deleteFollowUpTask(id: string): Promise<void> {
+  const { error } = await supabase.from("follow_up_tasks").delete().eq("id", id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function getFollowUpTasksPaginated(params: {
   clusterId?: string;
   status?: string;
   page: number;
   rowsPerPage: number;
 }): Promise<{ data: FollowUpTask[]; count: number }> {
+  const resolvedClusterId = await resolveClusterFilter(params.clusterId);
+  if (resolvedClusterId === null) {
+    return { data: [], count: 0 };
+  }
+
   let query = supabase
     .from("follow_up_tasks")
     .select("*, member:members(id,first_name,last_name), cluster:clusters(id,name)", { count: "exact" })
     .order("created_at", { ascending: false });
 
-  if (params.clusterId) {
-    query = query.eq("cluster_id", params.clusterId);
+  if (resolvedClusterId) {
+    query = query.eq("cluster_id", resolvedClusterId);
   }
   if (params.status) {
     query = query.eq("status", params.status);

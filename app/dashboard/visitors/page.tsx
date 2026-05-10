@@ -12,6 +12,7 @@ import { Visitor, FollowUpStatus } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { SearchableSelect } from "@/components/ui/SearchableSelect";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -100,6 +101,7 @@ export default function VisitorsPage() {
   const totalCount = visitorsData?.count ?? 0;
 
   const { data: members } = useMembers();
+  const showMemberSearch = (members?.length ?? 0) > 10;
   const createVisitor = useCreateVisitor();
   const updateVisitor = useUpdateVisitor();
   const deleteVisitor = useDeleteVisitor();
@@ -431,10 +433,12 @@ export default function VisitorsPage() {
               name="invited_by"
               control={control}
               render={({ field }) => (
-                <Select
+                <SearchableSelect
                   label="Invited By"
                   options={invitedByOptions}
                   placeholder="Select member"
+                  showSearch={showMemberSearch}
+                  searchPlaceholder="Search members..."
                   {...field}
                 />
               )}

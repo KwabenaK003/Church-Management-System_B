@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { format } from "date-fns";
-import { UserPlus, Trash, UsersThree, MagnifyingGlass } from "@phosphor-icons/react";
+import { UserPlus, Trash, UsersThree, MagnifyingGlass, Pencil } from "@phosphor-icons/react";
 
 import { apiFetch } from "@/lib/api/client";
 import { AppUser } from "@/types";
@@ -31,7 +31,13 @@ type UsersResponse = {
 const userSchema = z.object({
   full_name: z.string().trim().min(1, "Name is required"),
   email: z.string().trim().email("A valid email is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z
+    .string()
+    .optional()
+    .or(z.literal(""))
+    .refine((value) => !value || value.length >= 6, {
+      message: "Password must be at least 6 characters",
+    }),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
@@ -45,11 +51,13 @@ export default function UsersPage() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DashboardUser | null>(null);
+  const [editingUser, setEditingUser] = useState<DashboardUser | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
@@ -105,11 +113,75 @@ export default function UsersPage() {
     },
   });
 
+  const updateUser = useMutation({
+    mutationFn: ({
+      userId,
+      payload,
+    }: {
+      userId: string;
+      payload: UserFormData;
+    }) =>
+      apiFetch<DashboardUser>(`/api/users/${userId}`, {
+        method: "PUT",
+        body: payload,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-users"] });
+      addToast("User updated successfully.", "success");
+      reset();
+      setAddOpen(false);
+      setEditingUser(null);
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "Failed to update user.";
+      addToast(message, "error");
+    },
+  });
+
   const users = usersQuery.data?.data ?? [];
   const totalCount = usersQuery.data?.count ?? 0;
 
+  function openAddUser() {
+    setEditingUser(null);
+    reset({
+      full_name: "",
+      email: "",
+      password: "",
+    });
+    setAddOpen(true);
+  }
+
+  function openEditUser(user: DashboardUser) {
+    setEditingUser(user);
+    reset({
+      full_name: user.full_name ?? "",
+      email: user.email,
+      password: "",
+    });
+    setAddOpen(true);
+  }
+
   async function onSubmit(data: UserFormData) {
-    await createUser.mutateAsync(data);
+    if (!editingUser && !data.password) {
+      setError("password", {
+        type: "manual",
+        message: "Password is required for a new user",
+      });
+      return;
+    }
+
+    if (editingUser) {
+      await updateUser.mutateAsync({
+        userId: editingUser.id,
+        payload: data,
+      });
+      return;
+    }
+
+    await createUser.mutateAsync({
+      ...data,
+      password: data.password ?? "",
+    });
   }
 
   return (
@@ -121,7 +193,7 @@ export default function UsersPage() {
             {totalCount} dashboard user{totalCount !== 1 ? "s" : ""}
           </p>
         </div>
-        <Button onClick={() => setAddOpen(true)}>
+        <Button onClick={openAddUser}>
           <UserPlus size={16} />
           Add User
         </Button>
@@ -198,14 +270,24 @@ export default function UsersPage() {
                         {user.role || "admin"}
                       </td>
                       <td className="px-5 py-3">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteTarget(user)}
-                        >
-                          <Trash size={14} />
-                          Delete
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditUser(user)}
+                          >
+                            <Pencil size={14} />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteTarget(user)}
+                          >
+                            <Trash size={14} />
+                            Delete
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -231,9 +313,10 @@ export default function UsersPage() {
         open={addOpen}
         onClose={() => {
           setAddOpen(false);
+          setEditingUser(null);
           reset();
         }}
-        title="Add Dashboard User"
+        title={editingUser ? "Edit Dashboard User" : "Add Dashboard User"}
         size="sm"
       >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -255,7 +338,10 @@ export default function UsersPage() {
             type="password"
             {...register("password")}
             error={errors.password?.message}
-            required
+            required={!editingUser}
+            helperText={
+              editingUser ? "Leave blank to keep the current password." : undefined
+            }
           />
           <div className="flex justify-end gap-3 pt-2">
             <Button
@@ -263,13 +349,21 @@ export default function UsersPage() {
               type="button"
               onClick={() => {
                 setAddOpen(false);
+                setEditingUser(null);
                 reset();
               }}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={createUser.isPending}>
-              {createUser.isPending ? "Saving..." : "Add User"}
+            <Button
+              type="submit"
+              disabled={createUser.isPending || updateUser.isPending}
+            >
+              {createUser.isPending || updateUser.isPending
+                ? "Saving..."
+                : editingUser
+                  ? "Save Changes"
+                  : "Add User"}
             </Button>
           </div>
         </form>

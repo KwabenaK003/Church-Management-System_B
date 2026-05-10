@@ -44,7 +44,7 @@ export const ADMIN_NAVIGATION_GROUPED: NavGroup[] = [
     items: [
       { label: "Attendance", href: "/dashboard/attendance", icon: CalendarCheck },
       { label: "Finance", href: "/dashboard/finance", icon: CurrencyDollar },
-      { label: "Equipment", href: "/dashboard/equipment", icon: Desktop },
+      { label: "Assets", href: "/dashboard/assets", icon: Desktop },
     ],
   },
   {

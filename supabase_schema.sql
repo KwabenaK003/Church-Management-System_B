@@ -194,6 +194,7 @@ create table members (
   id uuid primary key default gen_random_uuid(),
   member_number text unique,
   first_name text not null,
+  other_names text,
   last_name text not null,
   email citext unique,
   phone text,

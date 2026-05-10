@@ -3,6 +3,7 @@ import { apiFetch } from "@/lib/api/client";
 
 export interface MemberPayload {
   first_name: string;
+  other_names?: string;
   last_name: string;
   email?: string;
   phone?: string;

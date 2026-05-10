@@ -34,6 +34,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const year = searchParams.get("year");
     const month = searchParams.get("month");
+    const search = searchParams.get("search")?.trim().toLowerCase();
     const pageParam = searchParams.get("page");
     const rowsPerPageParam = searchParams.get("rowsPerPage");
 
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
         .lte("expense_date", `${resolvedYear}-${monthStr}-${lastDay}`);
     }
 
-    if (pageParam && rowsPerPageParam) {
+    if (pageParam && rowsPerPageParam && !search) {
       const page = parseNumberParam(pageParam, 1);
       const rowsPerPage = parseNumberParam(rowsPerPageParam, 10);
       const from = (page - 1) * rowsPerPage;
@@ -71,6 +72,30 @@ export async function GET(request: Request) {
     }
 
     if (pageParam && rowsPerPageParam) {
+      const page = parseNumberParam(pageParam, 1);
+      const rowsPerPage = parseNumberParam(rowsPerPageParam, 10);
+      const filteredData = search
+        ? (data ?? []).filter((expense) => {
+            const haystack = [
+              expense.description ?? "",
+              expense.category?.name ?? "",
+              expense.payment_method ?? "",
+              expense.notes ?? "",
+              expense.approval_status ?? "",
+            ]
+              .join(" ")
+              .toLowerCase();
+
+            return haystack.includes(search);
+          })
+        : (data ?? []);
+
+      if (search) {
+        const from = (page - 1) * rowsPerPage;
+        const paginatedData = filteredData.slice(from, from + rowsPerPage);
+        return jsonSuccess({ data: paginatedData, count: filteredData.length });
+      }
+
       return jsonSuccess({ data: data ?? [], count: count ?? 0 });
     }
 

@@ -7,6 +7,8 @@ import {
   getSmsCampaigns,
   getSmsCampaignsPaginated,
   createSmsCampaign,
+  updateSmsCampaign,
+  deleteSmsCampaign,
 } from "@/lib/services/smsService";
 
 const TEMPLATES_KEY = ["sms_templates"] as const;
@@ -42,10 +44,14 @@ export function useSmsCampaigns() {
   });
 }
 
-export function useSmsCampaignsPaginated(page = 1, rowsPerPage = 10) {
+export function useSmsCampaignsPaginated(
+  search = "",
+  page = 1,
+  rowsPerPage = 10,
+) {
   return useQuery({
-    queryKey: ["sms_campaigns", "paginated", page, rowsPerPage],
-    queryFn: () => getSmsCampaignsPaginated({ page, rowsPerPage }),
+    queryKey: ["sms_campaigns", "paginated", search, page, rowsPerPage],
+    queryFn: () => getSmsCampaignsPaginated({ search, page, rowsPerPage }),
     placeholderData: keepPreviousData,
   });
 }
@@ -54,6 +60,23 @@ export function useCreateSmsCampaign() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: Partial<SMSCampaign>) => createSmsCampaign(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
+  });
+}
+
+export function useUpdateSmsCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: Partial<SMSCampaign> & { id: string }) =>
+      updateSmsCampaign(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
+  });
+}
+
+export function useDeleteSmsCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteSmsCampaign,
     onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
   });
 }

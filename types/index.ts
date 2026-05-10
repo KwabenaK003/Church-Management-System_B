@@ -139,6 +139,7 @@ export interface Member {
   id: string;
   member_number?: string;
   first_name: string;
+  other_names?: string;
   last_name: string;
   email?: string;
   phone?: string;

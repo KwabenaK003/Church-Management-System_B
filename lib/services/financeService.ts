@@ -88,6 +88,7 @@ export async function updateExpense(id: string, payload: Partial<Expense>): Prom
 export async function getDonationsPaginated(params: {
   year?: number;
   month?: number;
+  search?: string;
   page: number;
   rowsPerPage: number;
 }): Promise<{ data: Donation[]; count: number }> {
@@ -97,6 +98,7 @@ export async function getDonationsPaginated(params: {
   });
   if (params.year) searchParams.set("year", String(params.year));
   if (params.month) searchParams.set("month", String(params.month));
+  if (params.search?.trim()) searchParams.set("search", params.search.trim());
   return apiFetch<{ data: Donation[]; count: number }>(
     `/api/finance/donations?${searchParams.toString()}`,
   );
@@ -105,6 +107,7 @@ export async function getDonationsPaginated(params: {
 export async function getExpensesPaginated(params: {
   year?: number;
   month?: number;
+  search?: string;
   page: number;
   rowsPerPage: number;
 }): Promise<{ data: Expense[]; count: number }> {
@@ -114,6 +117,7 @@ export async function getExpensesPaginated(params: {
   });
   if (params.year) searchParams.set("year", String(params.year));
   if (params.month) searchParams.set("month", String(params.month));
+  if (params.search?.trim()) searchParams.set("search", params.search.trim());
   return apiFetch<{ data: Expense[]; count: number }>(
     `/api/finance/expenses?${searchParams.toString()}`,
   );
@@ -121,6 +125,7 @@ export async function getExpensesPaginated(params: {
 
 export async function getPledgesPaginated(params: {
   campaignId?: string;
+  search?: string;
   page: number;
   rowsPerPage: number;
 }): Promise<{ data: Pledge[]; count: number }> {
@@ -129,6 +134,7 @@ export async function getPledgesPaginated(params: {
     rowsPerPage: String(params.rowsPerPage),
   });
   if (params.campaignId) searchParams.set("campaignId", params.campaignId);
+  if (params.search?.trim()) searchParams.set("search", params.search.trim());
   return apiFetch<{ data: Pledge[]; count: number }>(
     `/api/finance/pledges?${searchParams.toString()}`,
   );

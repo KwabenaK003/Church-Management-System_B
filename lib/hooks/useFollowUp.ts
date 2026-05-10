@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { FollowUpTask } from "@/types";
-import { getFollowUpTasks, createFollowUpTask, updateFollowUpTask, getFollowUpTasksPaginated } from "@/lib/services/followUpService";
+import {
+  getFollowUpTasks,
+  createFollowUpTask,
+  updateFollowUpTask,
+  deleteFollowUpTask,
+  getFollowUpTasksPaginated,
+} from "@/lib/services/followUpService";
 
 const QUERY_KEY = ["follow_up_tasks"] as const;
 
@@ -42,6 +48,14 @@ export function useUpdateFollowUpTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...payload }: Partial<FollowUpTask> & { id: string }) => updateFollowUpTask(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
+export function useDeleteFollowUpTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteFollowUpTask,
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
 }
