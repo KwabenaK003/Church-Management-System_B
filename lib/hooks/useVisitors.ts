@@ -6,6 +6,7 @@ import {
   updateVisitorFollowUp,
   getVisitorsPaginated,
   deleteVisitor,
+  convertVisitorToMember,
 } from "@/lib/services/visitorService";
 import { apiFetch } from "@/lib/api/client";
 
@@ -64,5 +65,16 @@ export function useDeleteVisitor() {
   return useMutation({
     mutationFn: (id: string) => deleteVisitor(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
+export function useConvertVisitorToMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (visitorId: string) => convertVisitorToMember(visitorId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ["members"] });
+    },
   });
 }

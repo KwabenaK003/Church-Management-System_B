@@ -125,7 +125,10 @@ export async function POST(request: Request) {
     const row = {
       ...payload,
       member_id: payload.member_id || undefined,
+      donor_name: payload.donor_name?.trim() || undefined,
       category_id: payload.category_id || undefined,
+      notes: payload.notes?.trim() || undefined,
+      reference_number: payload.reference_number?.trim() || undefined,
     };
 
     const { data, error } = await supabaseAdmin

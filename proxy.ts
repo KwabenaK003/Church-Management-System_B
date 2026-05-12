@@ -14,6 +14,10 @@ const PUBLIC_PATHS = [
   "/api/public",
 ];
 
+function isApiRoute(pathname: string) {
+  return pathname === "/api" || pathname.startsWith("/api/");
+}
+
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
@@ -35,6 +39,10 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user && !isPublic(pathname)) {
+    if (isApiRoute(pathname)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("from", pathname);
@@ -57,6 +65,16 @@ export async function proxy(request: NextRequest) {
     if (!appUser) {
       if (pathname === "/login") {
         return response();
+      }
+
+      if (isApiRoute(pathname)) {
+        return NextResponse.json(
+          {
+            error:
+              "Access denied. Only dashboard users created by an administrator can continue.",
+          },
+          { status: 403 },
+        );
       }
 
       const loginUrl = request.nextUrl.clone();

@@ -6,6 +6,7 @@ import {
   useCreateVisitor,
   useUpdateVisitor,
   useDeleteVisitor,
+  useConvertVisitorToMember,
 } from "@/lib/hooks/useVisitors";
 import { useMembers } from "@/lib/hooks/useMembers";
 import { Visitor, FollowUpStatus } from "@/types";
@@ -105,6 +106,7 @@ export default function VisitorsPage() {
   const createVisitor = useCreateVisitor();
   const updateVisitor = useUpdateVisitor();
   const deleteVisitor = useDeleteVisitor();
+  const convertVisitor = useConvertVisitorToMember();
 
   const {
     selectedIds,
@@ -169,6 +171,11 @@ export default function VisitorsPage() {
   }
 
   async function markFollowedUp(v: Visitor, status: FollowUpStatus) {
+    if (status === "joined") {
+      await convertVisitor.mutateAsync(v.id);
+      return;
+    }
+
     await updateVisitor.mutateAsync({ id: v.id, follow_up_status: status });
   }
 
@@ -340,9 +347,10 @@ export default function VisitorsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => markFollowedUp(v, "joined")}
+                              disabled={convertVisitor.isPending}
                             >
                               <CheckCircle size={14} />
-                              Joined
+                              {convertVisitor.isPending ? "Joining..." : "Joined"}
                             </Button>
                           )}
                           <Button

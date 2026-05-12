@@ -51,6 +51,27 @@ export async function getFollowUpTasks(clusterId?: string, status?: string): Pro
   return data as FollowUpTask[];
 }
 
+function matchesFollowUpSearch(task: FollowUpTask, search?: string) {
+  if (!search?.trim()) {
+    return true;
+  }
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const memberName = `${task.member?.first_name ?? ""} ${task.member?.last_name ?? ""}`.trim();
+  const haystack = [
+    memberName,
+    task.cluster?.name ?? "",
+    task.assigned_to,
+    task.reason,
+    task.notes ?? "",
+    task.status,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(normalizedSearch);
+}
+
 export async function createFollowUpTask(payload: Partial<FollowUpTask>): Promise<FollowUpTask> {
   const { data, error } = await supabase
     .from("follow_up_tasks")
@@ -91,6 +112,7 @@ export async function deleteFollowUpTask(id: string): Promise<void> {
 export async function getFollowUpTasksPaginated(params: {
   clusterId?: string;
   status?: string;
+  search?: string;
   page: number;
   rowsPerPage: number;
 }): Promise<{ data: FollowUpTask[]; count: number }> {
@@ -111,10 +133,26 @@ export async function getFollowUpTasksPaginated(params: {
     query = query.eq("status", params.status);
   }
 
-  const from = (params.page - 1) * params.rowsPerPage;
-  query = query.range(from, from + params.rowsPerPage - 1);
+  if (!params.search?.trim()) {
+    const from = (params.page - 1) * params.rowsPerPage;
+    query = query.range(from, from + params.rowsPerPage - 1);
+  }
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
-  return { data: (data ?? []) as FollowUpTask[], count: count ?? 0 };
+
+  const tasks = ((data ?? []) as FollowUpTask[]).filter((task) =>
+    matchesFollowUpSearch(task, params.search),
+  );
+
+  if (params.search?.trim()) {
+    const from = (params.page - 1) * params.rowsPerPage;
+
+    return {
+      data: tasks.slice(from, from + params.rowsPerPage),
+      count: tasks.length,
+    };
+  }
+
+  return { data: tasks, count: count ?? 0 };
 }

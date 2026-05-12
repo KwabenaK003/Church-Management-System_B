@@ -5,8 +5,12 @@ import {
   deleteDonationCategory,
   getDonations,
   createDonation,
+  updateDonation,
+  deleteDonation,
   getPledgeCampaigns,
   createPledgeCampaign,
+  updatePledgeCampaign,
+  deletePledgeCampaign,
   getPledges,
   createPledge,
   getExpenseCategories,
@@ -14,6 +18,7 @@ import {
   getExpenses,
   createExpense,
   updateExpense,
+  deleteExpense,
   getDonationsPaginated,
   getExpensesPaginated,
   getPledgesPaginated,
@@ -55,6 +60,23 @@ export function useCreateDonation() {
   });
 }
 
+export function useUpdateDonation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: Partial<Donation> & { id: string }) =>
+      updateDonation(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: DONATIONS_KEY }),
+  });
+}
+
+export function useDeleteDonation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteDonation(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: DONATIONS_KEY }),
+  });
+}
+
 
 const CAMPAIGNS_KEY = ["pledge_campaigns"] as const;
 
@@ -70,6 +92,26 @@ export function useCreatePledgeCampaign() {
   return useMutation({
     mutationFn: (payload: Partial<PledgeCampaign>) => createPledgeCampaign(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
+  });
+}
+
+export function useUpdatePledgeCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: Partial<PledgeCampaign> & { id: string }) =>
+      updatePledgeCampaign(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY }),
+  });
+}
+
+export function useDeletePledgeCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deletePledgeCampaign(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CAMPAIGNS_KEY });
+      qc.invalidateQueries({ queryKey: PLEDGES_KEY });
+    },
   });
 }
 
@@ -131,6 +173,14 @@ export function useUpdateExpense() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...payload }: Partial<Expense> & { id: string }) => updateExpense(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: EXPENSES_KEY }),
+  });
+}
+
+export function useDeleteExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteExpense(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: EXPENSES_KEY }),
   });
 }

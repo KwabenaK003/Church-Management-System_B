@@ -21,7 +21,13 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
 import { DeleteConfirmModal } from "@/components/ui/DeleteConfirmModal";
-import { Pencil, Plus, Trash, UsersThree } from "@phosphor-icons/react";
+import {
+  MagnifyingGlass,
+  Pencil,
+  Plus,
+  Trash,
+  UsersThree,
+} from "@phosphor-icons/react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -60,6 +66,7 @@ const schema = z.object({
 export default function FollowUpPage() {
   const [clusterFilter, setClusterFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [open, setOpen] = useState(false);
@@ -69,6 +76,7 @@ export default function FollowUpPage() {
   const { data: tasksData, isLoading } = useFollowUpTasksPaginated(
     clusterFilter || undefined,
     statusFilter || undefined,
+    search,
     page,
     rowsPerPage,
   );
@@ -201,6 +209,21 @@ export default function FollowUpPage() {
       </div>
 
       <div className="flex gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <MagnifyingGlass
+            size={16}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+          />
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Search member, leader, reason..."
+            className="w-full rounded-lg border border-[var(--border-color)] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
         <select
           value={clusterFilter}
           onChange={(e) => {

@@ -46,9 +46,16 @@ export async function POST(request: Request) {
 
   try {
     const payload = await parseJson(request, campaignSchema);
+    const row = {
+      name: payload.name,
+      description: payload.description?.trim() || undefined,
+      target_amount: payload.target_amount,
+      start_date: payload.start_date || undefined,
+      end_date: payload.end_date || undefined,
+    };
     const { data, error } = await supabaseAdmin
       .from("pledge_campaigns")
-      .insert(payload)
+      .insert(row)
       .select("*")
       .single();
 

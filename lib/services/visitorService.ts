@@ -1,5 +1,4 @@
 import { Visitor, FollowUpStatus, Member } from "@/types";
-import { createMember, MemberPayload } from "@/lib/services/memberService";
 import { apiFetch } from "@/lib/api/client";
 
 export interface VisitorPayload {
@@ -55,19 +54,15 @@ export async function deleteVisitor(id: string): Promise<void> {
   });
 }
 
-export async function convertVisitorToMember(visitorId: string, memberData: MemberPayload): Promise<Member> {
-  const visitor = await getVisitorById(visitorId);
-
-  const newMember = await createMember({
-    ...memberData,
-    first_name: memberData.first_name ?? visitor.first_name,
-    last_name: memberData.last_name ?? visitor.last_name,
-    email: memberData.email ?? visitor.email ?? "",
-  });
-
-  await updateVisitorFollowUp(visitorId, "joined");
-
-  return newMember;
+export async function convertVisitorToMember(
+  visitorId: string,
+): Promise<{ visitor: Visitor; member: Member }> {
+  return apiFetch<{ visitor: Visitor; member: Member }>(
+    `/api/visitors/${visitorId}/join`,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export async function getVisitorsPaginated(params: {
