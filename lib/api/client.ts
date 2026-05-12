@@ -33,19 +33,35 @@ export async function apiFetch<T>(
     cache: "no-store",
   });
 
-  const isJson = response.headers
-    .get("content-type")
-    ?.includes("application/json");
+  const contentType = response.headers.get("content-type") ?? "";
+  const isJson = contentType.includes("application/json");
+  const rawText = await response.text();
+  let payload: unknown = null;
 
-  const payload = isJson ? await response.json().catch(() => null) : null;
+  if (isJson && rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = null;
+    }
+  }
 
   if (!response.ok) {
+    const fallbackMessage =
+      payload?.error ||
+      rawText.trim() ||
+      `Request failed with status ${response.status}`;
+
     throw new ApiError(
-      payload?.error ?? "Request failed",
+      fallbackMessage,
       response.status,
-      payload,
+      payload ?? rawText,
     );
   }
 
-  return payload as T;
+  if (!rawText) {
+    return null as T;
+  }
+
+  return (payload ?? rawText) as T;
 }

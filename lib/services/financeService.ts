@@ -27,6 +27,22 @@ export async function createDonation(payload: Partial<Donation>): Promise<Donati
   });
 }
 
+export async function updateDonation(
+  id: string,
+  payload: Partial<Donation>,
+): Promise<Donation> {
+  return apiFetch<Donation>(`/api/finance/donations/${id}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export async function deleteDonation(id: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/api/finance/donations/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function getPledgeCampaigns(): Promise<PledgeCampaign[]> {
   return apiFetch<PledgeCampaign[]>("/api/finance/pledge-campaigns");
 }
@@ -35,6 +51,22 @@ export async function createPledgeCampaign(payload: Partial<PledgeCampaign>): Pr
   return apiFetch<PledgeCampaign>("/api/finance/pledge-campaigns", {
     method: "POST",
     body: payload,
+  });
+}
+
+export async function updatePledgeCampaign(
+  id: string,
+  payload: Partial<PledgeCampaign>,
+): Promise<PledgeCampaign> {
+  return apiFetch<PledgeCampaign>(`/api/finance/pledge-campaigns/${id}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export async function deletePledgeCampaign(id: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/api/finance/pledge-campaigns/${id}`, {
+    method: "DELETE",
   });
 }
 
@@ -82,6 +114,12 @@ export async function updateExpense(id: string, payload: Partial<Expense>): Prom
   return apiFetch<Expense>(`/api/finance/expenses/${id}`, {
     method: "PATCH",
     body: payload,
+  });
+}
+
+export async function deleteExpense(id: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/api/finance/expenses/${id}`, {
+    method: "DELETE",
   });
 }
 

@@ -20,15 +20,17 @@ export function useFollowUpTasks(clusterId?: string, status?: string) {
 export function useFollowUpTasksPaginated(
   clusterId?: string,
   status?: string,
+  search = "",
   page = 1,
   rowsPerPage = 10,
 ) {
   return useQuery({
-    queryKey: [...QUERY_KEY, "paginated", clusterId, status, page, rowsPerPage],
+    queryKey: [...QUERY_KEY, "paginated", clusterId, status, search, page, rowsPerPage],
     queryFn: () =>
       getFollowUpTasksPaginated({
         clusterId: clusterId || undefined,
         status: status || undefined,
+        search: search || undefined,
         page,
         rowsPerPage,
       }),

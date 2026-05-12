@@ -8,16 +8,17 @@ import {
   requireApiUser,
 } from "@/lib/api/server";
 
-const updateExpenseSchema = z.object({
+const updateDonationSchema = z.object({
+  member_id: z.string().uuid().optional().or(z.literal("")),
+  donor_name: z.string().optional(),
   category_id: z.string().uuid().optional().or(z.literal("")),
-  description: z.string().min(1).optional(),
   amount: z.number().positive().optional(),
   payment_method: z
     .enum(["cash", "mobile_money", "bank_transfer", "cheque", "online"])
     .optional(),
-  expense_date: z.string().optional(),
+  donation_date: z.string().optional(),
   notes: z.string().optional(),
-  approval_status: z.enum(["pending", "approved", "rejected"]).optional(),
+  reference_number: z.string().optional(),
 });
 
 export async function PATCH(
@@ -31,17 +32,19 @@ export async function PATCH(
 
   try {
     const { id } = await context.params;
-    const payload = await parseJson(request, updateExpenseSchema);
+    const payload = await parseJson(request, updateDonationSchema);
     const updates = {
       ...payload,
+      member_id: payload.member_id || undefined,
+      donor_name: payload.donor_name?.trim() || undefined,
       category_id: payload.category_id || undefined,
-      ...(payload.approval_status && payload.approval_status !== "pending"
-        ? { approved_at: new Date().toISOString() }
-        : {}),
+      notes: payload.notes?.trim() || undefined,
+      reference_number: payload.reference_number?.trim() || undefined,
+      donation_date: payload.donation_date || undefined,
     };
 
     const { data, error } = await supabaseAdmin
-      .from("expenses")
+      .from("donations")
       .update(updates)
       .eq("id", id)
       .select("*")
@@ -69,7 +72,7 @@ export async function DELETE(
   try {
     const { id } = await context.params;
     const { error } = await supabaseAdmin
-      .from("expenses")
+      .from("donations")
       .delete()
       .eq("id", id);
 
