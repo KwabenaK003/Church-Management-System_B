@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChurchIcon, WarningIcon } from "@phosphor-icons/react";
@@ -63,6 +63,7 @@ export function PublicCheckInPageClient({
   const [submitError, setSubmitError] = useState<string>();
   const [attendeeType, setAttendeeType] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
   const [visitorName, setVisitorName] = useState("");
   const [visitorEmail, setVisitorEmail] = useState("");
   const [visitorPhone, setVisitorPhone] = useState("");
@@ -81,10 +82,24 @@ export function PublicCheckInPageClient({
     : permissionState === "denied"
       ? "Location is blocked for this site. Enable location in your browser settings, then try again."
       : permissionState === "prompt"
-        ? "Allow location in your browser notification to continue."
+      ? "Allow location in your browser notification to continue."
     : locating
       ? "Requesting your current location..."
       : "We request your location each time this page loads.";
+  const filteredMembers = useMemo(() => {
+    if (!context) {
+      return [];
+    }
+
+    const query = memberSearch.trim().toLowerCase();
+    if (!query) {
+      return context.members;
+    }
+
+    return context.members.filter((member) =>
+      `${member.first_name} ${member.last_name}`.trim().toLowerCase().includes(query),
+    );
+  }, [context, memberSearch]);
 
   const requestLocation = useCallback(() => {
     requestPosition({
@@ -303,6 +318,7 @@ export function PublicCheckInPageClient({
               setAttendeeType(event.target.value);
               setSubmitError(undefined);
               setSelectedMemberId("");
+              setMemberSearch("");
               setVisitorName("");
               setVisitorEmail("");
               setVisitorPhone("");
@@ -320,13 +336,23 @@ export function PublicCheckInPageClient({
               <p className="text-sm font-medium text-slate-700">
                 Select your name from the member list below.
               </p>
+              <Input
+                label="Search Member"
+                value={memberSearch}
+                onChange={(event) => setMemberSearch(event.target.value)}
+                placeholder="Search by first or last name"
+              />
               <div className="max-h-64 overflow-y-auto rounded-xl border border-[var(--border-color)]">
                 {context.members.length === 0 ? (
                   <p className="px-4 py-3 text-sm text-slate-500">
                     No members are available for check-in yet.
                   </p>
+                ) : filteredMembers.length === 0 ? (
+                  <p className="px-4 py-3 text-sm text-slate-500">
+                    No member matches that search yet.
+                  </p>
                 ) : (
-                  context.members.map((member) => (
+                  filteredMembers.map((member) => (
                     <button
                       key={member.id}
                       type="button"

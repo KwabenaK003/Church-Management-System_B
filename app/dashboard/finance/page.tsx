@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Tabs } from "@/components/ui/Tabs";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -25,6 +25,8 @@ import {
   useDeletePledgeCampaign,
   usePledgesPaginated,
   useCreatePledge,
+  useUpdatePledge,
+  useDeletePledge,
   useExpensesPaginated,
   useCreateExpense,
   useUpdateExpense,
@@ -50,7 +52,9 @@ import {
   Donation,
   Expense,
   PaymentMethod,
+  Pledge,
   PledgeCampaign,
+  PledgeStatus,
 } from "@/types";
 import { useToastStore } from "@/lib/stores/toastStore";
 
@@ -67,6 +71,13 @@ const approvalBadge: Record<ApprovalStatus, "warning" | "success" | "danger"> = 
   approved: "success",
   rejected: "danger",
 };
+
+const PLEDGE_STATUS_OPTIONS: { value: PledgeStatus; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "partial", label: "Partial" },
+  { value: "fulfilled", label: "Fulfilled" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
 // ─── Donations Tab ────────────────────────────────────────────────────────────
 
@@ -198,7 +209,7 @@ function DonationsTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
-                <tr>{["Donor", "Category", "Amount", "Method", "Date", ""].map(h => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
+                <tr>{["Donor", "Category", "Amount", "Method", "Date", "Actions"].map(h => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
                 {donations.map(d => (
@@ -414,7 +425,7 @@ function ExpensesTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
-                <tr>{["Description", "Category", "Amount", "Status", "Date", ""].map(h => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
+                <tr>{["Description", "Category", "Amount", "Status", "Date", "Actions"].map(h => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
                 {expenses.map(e => (
@@ -543,7 +554,19 @@ function ExpensesTab() {
 
 // ─── Pledges Tab ──────────────────────────────────────────────────────────────
 
+const pledgeSchema = z.object({
+  member_id: z.string().min(1, "Required"),
+  pledged_amount: z.string().min(1, "Required"),
+  paid_amount: z.string().optional(),
+  status: z.enum(["pending", "partial", "fulfilled", "cancelled"]).default("pending"),
+  due_date: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+type PledgeFormValues = z.input<typeof pledgeSchema>;
+
 function PledgesTab() {
+  const addToast = useToastStore((state) => state.addToast);
   const [addCampaignOpen, setAddCampaignOpen] = useState(false);
   const [addPledgeOpen, setAddPledgeOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState("");
@@ -551,24 +574,57 @@ function PledgesTab() {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [editingCampaign, setEditingCampaign] = useState<PledgeCampaign | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<PledgeCampaign | null>(null);
+  const [editingPledge, setEditingPledge] = useState<Pledge | null>(null);
+  const [deleteCampaignTarget, setDeleteCampaignTarget] = useState<PledgeCampaign | null>(null);
+  const [deletePledgeTarget, setDeletePledgeTarget] = useState<Pledge | null>(null);
   const { data: campaigns, isLoading: campaignsLoading } = usePledgeCampaigns();
-  const { data, isLoading: pledgesLoading } = usePledgesPaginated(selectedCampaign || undefined, search, page, rowsPerPage);
+  const { data, isLoading: pledgesLoading } = usePledgesPaginated(
+    selectedCampaign || undefined,
+    search,
+    page,
+    rowsPerPage,
+  );
   const { data: members } = useMembers();
   const showMemberSearch = (members?.length ?? 0) > 10;
   const createCampaign = useCreatePledgeCampaign();
   const updateCampaign = useUpdatePledgeCampaign();
   const deleteCampaign = useDeletePledgeCampaign();
   const createPledge = useCreatePledge();
+  const updatePledge = useUpdatePledge();
+  const deletePledge = useDeletePledge();
 
   const pledges = data?.data ?? [];
   const totalCount = data?.count ?? 0;
   const activeCampaign = campaigns?.find((campaign) => campaign.id === selectedCampaign);
 
-  const campaignForm = useForm({ defaultValues: { name: "", description: "", target_amount: "", start_date: "", end_date: "" } });
-  const pledgeForm = useForm({ defaultValues: { member_id: "", pledged_amount: "", due_date: "" } });
+  const campaignForm = useForm({
+    defaultValues: { name: "", description: "", target_amount: "", start_date: "", end_date: "" },
+  });
+  const pledgeForm = useForm<PledgeFormValues>({
+    resolver: zodResolver(pledgeSchema),
+    defaultValues: {
+      member_id: "",
+      pledged_amount: "",
+      paid_amount: "0",
+      status: "pending",
+      due_date: "",
+      notes: "",
+    },
+  });
 
-  const memberOptions = members?.map(m => ({ value: m.id, label: `${m.first_name} ${m.last_name}` })) ?? [];
+  const memberOptions = members?.map((member) => ({
+    value: member.id,
+    label: `${member.first_name} ${member.last_name}`,
+  })) ?? [];
+  const pledgeDeleteLabel = useMemo(() => {
+    if (!deletePledgeTarget) {
+      return "";
+    }
+
+    return deletePledgeTarget.member
+      ? `${deletePledgeTarget.member.first_name} ${deletePledgeTarget.member.last_name}`.trim()
+      : "this member";
+  }, [deletePledgeTarget]);
 
   async function onCampaignSubmit(data: any) {
     const payload = {
@@ -593,13 +649,47 @@ function PledgesTab() {
     setEditingCampaign(null);
   }
 
-  async function onPledgeSubmit(data: any) {
+  async function onPledgeSubmit(data: PledgeFormValues) {
     if (!selectedCampaign) {
       return;
     }
 
-    await createPledge.mutateAsync({ ...data, campaign_id: selectedCampaign, pledged_amount: parseFloat(data.pledged_amount) });
-    pledgeForm.reset(); setAddPledgeOpen(false);
+    const payload = {
+      member_id: data.member_id,
+      pledged_amount: parseFloat(data.pledged_amount),
+      paid_amount: data.paid_amount?.trim() ? parseFloat(data.paid_amount) : 0,
+      status: data.status ?? "pending",
+      due_date: data.due_date || undefined,
+      notes: data.notes?.trim() || undefined,
+    };
+
+    try {
+      if (editingPledge) {
+        await updatePledge.mutateAsync({
+          id: editingPledge.id,
+          ...payload,
+        });
+        addToast("Pledge updated successfully.", "success");
+      } else {
+        await createPledge.mutateAsync({
+          campaign_id: selectedCampaign,
+          member_id: payload.member_id,
+          pledged_amount: payload.pledged_amount,
+          due_date: payload.due_date,
+          notes: payload.notes,
+        });
+        addToast("Pledge created successfully.", "success");
+      }
+
+      pledgeForm.reset();
+      setAddPledgeOpen(false);
+      setEditingPledge(null);
+    } catch (error) {
+      addToast(
+        error instanceof Error ? error.message : "Failed to save pledge.",
+        "error",
+      );
+    }
   }
 
   function openCreateCampaign() {
@@ -626,6 +716,32 @@ function PledgesTab() {
     setAddCampaignOpen(true);
   }
 
+  function openCreatePledge() {
+    setEditingPledge(null);
+    pledgeForm.reset({
+      member_id: "",
+      pledged_amount: "",
+      paid_amount: "0",
+      status: "pending",
+      due_date: "",
+      notes: "",
+    });
+    setAddPledgeOpen(true);
+  }
+
+  function openEditPledge(pledge: Pledge) {
+    setEditingPledge(pledge);
+    pledgeForm.reset({
+      member_id: pledge.member_id,
+      pledged_amount: pledge.pledged_amount.toString(),
+      paid_amount: pledge.paid_amount.toString(),
+      status: pledge.status,
+      due_date: pledge.due_date ?? "",
+      notes: pledge.notes ?? "",
+    });
+    setAddPledgeOpen(true);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -641,7 +757,7 @@ function PledgesTab() {
             New Campaign
           </Button>
           {selectedCampaign && (
-            <Button size="sm" onClick={() => setAddPledgeOpen(true)}>
+            <Button size="sm" onClick={openCreatePledge}>
               <Plus size={14} />
               Add Pledge
             </Button>
@@ -752,7 +868,7 @@ function PledgesTab() {
                       size="sm"
                       variant="ghost"
                       className="text-red-500 hover:bg-red-50 hover:text-red-700"
-                      onClick={() => setDeleteTarget(campaign)}
+                      onClick={() => setDeleteCampaignTarget(campaign)}
                     >
                       <Trash size={14} />
                       Delete
@@ -772,7 +888,7 @@ function PledgesTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
-                <tr>{["Member", "Pledged", "Paid", "Status", "Due Date"].map(h => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
+                <tr>{["Member", "Pledged", "Paid", "Status", "Due Date", "Actions"].map(h => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
                 {pledges.map(p => (
@@ -782,6 +898,23 @@ function PledgesTab() {
                     <td className="px-5 py-3">GHS {p.paid_amount.toLocaleString()}</td>
                     <td className="px-5 py-3"><Badge tone={p.status === "fulfilled" ? "success" : p.status === "cancelled" ? "danger" : "warning"}>{p.status}</Badge></td>
                     <td className="px-5 py-3 text-slate-500">{p.due_date ? format(new Date(p.due_date), "dd MMM yyyy") : "—"}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex gap-2 flex-wrap">
+                        <Button size="sm" variant="ghost" onClick={() => openEditPledge(p)}>
+                          <Pencil size={14} />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-500 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => setDeletePledgeTarget(p)}
+                        >
+                          <Trash size={14} />
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -814,33 +947,125 @@ function PledgesTab() {
         </form>
       </Modal>
 
-      <Modal open={addPledgeOpen} onClose={() => setAddPledgeOpen(false)} title="Add Pledge">
+      <Modal
+        open={addPledgeOpen}
+        onClose={() => {
+          setAddPledgeOpen(false);
+          setEditingPledge(null);
+          pledgeForm.reset();
+        }}
+        title={editingPledge ? "Edit Pledge" : "Add Pledge"}
+      >
         <form onSubmit={pledgeForm.handleSubmit(onPledgeSubmit)} className="space-y-4">
-          <Controller name="member_id" control={pledgeForm.control} render={({ field }) => <SearchableSelect label="Member" options={memberOptions} placeholder="Select member" showSearch={showMemberSearch} searchPlaceholder="Search members..." {...field} required />} />
-          <Input label="Pledged Amount (GHS)" type="number" {...pledgeForm.register("pledged_amount")} required />
-          <Input label="Due Date" type="date" {...pledgeForm.register("due_date")} />
-          <div className="flex justify-end gap-3"><Button variant="secondary" type="button" onClick={() => setAddPledgeOpen(false)}>Cancel</Button><Button type="submit" disabled={createPledge.isPending}>{createPledge.isPending ? "Saving..." : "Save Pledge"}</Button></div>
+          <Controller
+            name="member_id"
+            control={pledgeForm.control}
+            render={({ field }) => (
+              <SearchableSelect
+                label="Member"
+                options={memberOptions}
+                placeholder="Select member"
+                showSearch={showMemberSearch}
+                searchPlaceholder="Search members..."
+                error={pledgeForm.formState.errors.member_id?.message}
+                {...field}
+                required
+              />
+            )}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Pledged Amount (GHS)"
+              type="number"
+              step="0.01"
+              {...pledgeForm.register("pledged_amount")}
+              error={pledgeForm.formState.errors.pledged_amount?.message}
+              required
+            />
+            <Input
+              label="Paid Amount (GHS)"
+              type="number"
+              step="0.01"
+              {...pledgeForm.register("paid_amount")}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Controller
+              name="status"
+              control={pledgeForm.control}
+              render={({ field }) => (
+                <Select label="Status" options={PLEDGE_STATUS_OPTIONS} {...field} />
+              )}
+            />
+            <Input label="Due Date" type="date" {...pledgeForm.register("due_date")} />
+          </div>
+          <Textarea label="Notes" {...pledgeForm.register("notes")} />
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => {
+                setAddPledgeOpen(false);
+                setEditingPledge(null);
+                pledgeForm.reset();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={createPledge.isPending || updatePledge.isPending}>
+              {createPledge.isPending || updatePledge.isPending
+                ? "Saving..."
+                : editingPledge
+                  ? "Save Changes"
+                  : "Save Pledge"}
+            </Button>
+          </div>
         </form>
       </Modal>
 
       <DeleteConfirmModal
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        open={!!deleteCampaignTarget}
+        onClose={() => setDeleteCampaignTarget(null)}
         onConfirm={() => {
-          if (!deleteTarget) {
+          if (!deleteCampaignTarget) {
             return;
           }
 
-          return deleteCampaign.mutateAsync(deleteTarget.id).then(() => {
-            if (selectedCampaign === deleteTarget.id) {
+          return deleteCampaign.mutateAsync(deleteCampaignTarget.id).then(() => {
+            if (selectedCampaign === deleteCampaignTarget.id) {
               setSelectedCampaign("");
             }
-            setDeleteTarget(null);
+            setDeleteCampaignTarget(null);
             setPage(1);
           });
         }}
-        description={`Are you sure you want to delete "${deleteTarget?.name ?? ""}"? Any pledges linked to this campaign will also be removed.`}
+        description={`Are you sure you want to delete "${deleteCampaignTarget?.name ?? ""}"? Any pledges linked to this campaign will also be removed.`}
         isPending={deleteCampaign.isPending}
+      />
+
+      <DeleteConfirmModal
+        open={!!deletePledgeTarget}
+        onClose={() => setDeletePledgeTarget(null)}
+        onConfirm={() => {
+          if (!deletePledgeTarget) {
+            return;
+          }
+
+          return deletePledge
+            .mutateAsync(deletePledgeTarget.id)
+            .then(() => {
+              addToast("Pledge deleted successfully.", "success");
+              setDeletePledgeTarget(null);
+            })
+            .catch((error) => {
+              addToast(
+                error instanceof Error ? error.message : "Failed to delete pledge.",
+                "error",
+              );
+            });
+        }}
+        description={`Are you sure you want to delete the pledge for "${pledgeDeleteLabel}"? This action cannot be undone.`}
+        isPending={deletePledge.isPending}
       />
     </div>
   );
