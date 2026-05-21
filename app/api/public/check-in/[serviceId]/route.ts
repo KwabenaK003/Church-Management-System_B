@@ -74,8 +74,8 @@ export async function GET(_: Request, ctx: Context) {
       .from("members")
       .select("id, first_name, last_name")
       .eq("membership_status", "active")
-      .order("last_name")
-      .order("first_name");
+      .order("first_name")
+      .order("last_name");
 
     if (membersError) {
       throw new Error(membersError.message);

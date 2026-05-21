@@ -13,6 +13,8 @@ import {
   deletePledgeCampaign,
   getPledges,
   createPledge,
+  updatePledge,
+  deletePledge,
   getExpenseCategories,
   deleteExpenseCategory,
   getExpenses,
@@ -129,6 +131,23 @@ export function useCreatePledge() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: Partial<Pledge>) => createPledge(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PLEDGES_KEY }),
+  });
+}
+
+export function useUpdatePledge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...payload }: Partial<Pledge> & { id: string }) =>
+      updatePledge(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PLEDGES_KEY }),
+  });
+}
+
+export function useDeletePledge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deletePledge(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: PLEDGES_KEY }),
   });
 }

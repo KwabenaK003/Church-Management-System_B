@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
   let query = supabaseAdmin
     .from("app_users")
     .select("*", { count: "exact" })
-    .order("created_at", { ascending: false });
+    .order("full_name", { ascending: true })
+    .order("email", { ascending: true });
 
   if (search) {
     query = query.or(

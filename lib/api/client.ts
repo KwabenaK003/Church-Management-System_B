@@ -46,9 +46,14 @@ export async function apiFetch<T>(
     }
   }
 
+  const payloadError =
+    payload && typeof payload === "object" && "error" in payload
+      ? payload.error
+      : undefined;
+
   if (!response.ok) {
     const fallbackMessage =
-      payload?.error ||
+      (typeof payloadError === "string" ? payloadError : undefined) ||
       rawText.trim() ||
       `Request failed with status ${response.status}`;
 

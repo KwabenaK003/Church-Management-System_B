@@ -84,6 +84,19 @@ export async function createPledge(payload: Partial<Pledge>): Promise<Pledge> {
   });
 }
 
+export async function updatePledge(id: string, payload: Partial<Pledge>): Promise<Pledge> {
+  return apiFetch<Pledge>(`/api/finance/pledges/${id}`, {
+    method: "PATCH",
+    body: payload,
+  });
+}
+
+export async function deletePledge(id: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(`/api/finance/pledges/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function getExpenseCategories(): Promise<ExpenseCategory[]> {
   return apiFetch<ExpenseCategory[]>("/api/settings/categories?type=expense");
 }

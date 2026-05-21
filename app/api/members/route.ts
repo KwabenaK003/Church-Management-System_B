@@ -85,6 +85,7 @@ export async function GET(request: Request) {
     let query = supabaseAdmin
       .from("members")
       .select("*, cluster:clusters(id,name)", { count: "exact" })
+      .order("first_name")
       .order("last_name");
 
     if (search) {
