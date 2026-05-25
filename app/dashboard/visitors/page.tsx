@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   useVisitorsPaginated,
   useCreateVisitor,
-  useUpdateVisitor,
   useDeleteVisitor,
   useConvertVisitorToMember,
 } from "@/lib/hooks/useVisitors";
@@ -22,13 +21,14 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { TableToolbar } from "@/components/ui/TableToolbar";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { DeleteConfirmModal } from "@/components/ui/DeleteConfirmModal";
 import { exportToCsv } from "@/lib/utils/exportCsv";
 import {
-  CheckCircle,
   UserPlusIcon,
   MagnifyingGlassIcon,
   UsersFourIcon,
+  DotsThree,
   Trash,
 } from "@phosphor-icons/react";
 import { Export } from "@phosphor-icons/react";
@@ -58,11 +58,17 @@ const followUpBadge: Record<FollowUpStatus, "warning" | "primary" | "success"> =
     joined: "success",
   };
 
+const FOLLOW_UP_STATUS_LABELS: Record<FollowUpStatus, string> = {
+  pending: "Pending",
+  contacted: "Contacted",
+  joined: "Added to Members",
+};
+
 const STATUS_OPTIONS = [
   { value: "", label: "All" },
   { value: "pending", label: "Pending" },
   { value: "contacted", label: "Contacted" },
-  { value: "joined", label: "Joined" },
+  { value: "joined", label: "Added to Members" },
 ];
 
 const HOW_HEARD_OPTIONS = [
@@ -87,8 +93,6 @@ export default function VisitorsPage() {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [addOpen, setAddOpen] = useState(false);
-  const [notesOpen, setNotesOpen] = useState<string | null>(null);
-  const [notesValue, setNotesValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Visitor | null>(null);
 
   const { data: visitorsData, isLoading } = useVisitorsPaginated(
@@ -104,7 +108,6 @@ export default function VisitorsPage() {
   const { data: members } = useMembers();
   const showMemberSearch = (members?.length ?? 0) > 10;
   const createVisitor = useCreateVisitor();
-  const updateVisitor = useUpdateVisitor();
   const deleteVisitor = useDeleteVisitor();
   const convertVisitor = useConvertVisitorToMember();
 
@@ -135,7 +138,7 @@ export default function VisitorsPage() {
       phone: v.phone ?? "",
       how_heard: v.how_heard ?? "",
       visit_date: v.visit_date,
-      follow_up_status: v.follow_up_status,
+      follow_up_status: FOLLOW_UP_STATUS_LABELS[v.follow_up_status],
       notes: v.notes ?? "",
     }));
     exportToCsv(dataToExport, "visitors-export", [
@@ -170,18 +173,8 @@ export default function VisitorsPage() {
     setAddOpen(false);
   }
 
-  async function markFollowedUp(v: Visitor, status: FollowUpStatus) {
-    if (status === "joined") {
-      await convertVisitor.mutateAsync(v.id);
-      return;
-    }
-
-    await updateVisitor.mutateAsync({ id: v.id, follow_up_status: status });
-  }
-
-  async function saveNotes(id: string) {
-    await updateVisitor.mutateAsync({ id, notes: notesValue });
-    setNotesOpen(null);
+  async function addToMembers(visitorId: string) {
+    await convertVisitor.mutateAsync(visitorId);
   }
 
   return (
@@ -282,7 +275,6 @@ export default function VisitorsPage() {
                     {[
                       "Name",
                       "Phone",
-                      "How They Heard",
                       "Visit Date",
                       "Status",
                     ].map((h) => (
@@ -319,59 +311,34 @@ export default function VisitorsPage() {
                       <td className="px-5 py-3 text-slate-500">
                         {v.phone ?? "-"}
                       </td>
-                      <td className="px-5 py-3 text-slate-500">
-                        {v.how_heard ?? "-"}
-                      </td>
                       <td className="px-5 py-3 text-slate-500 whitespace-nowrap">
                         {format(new Date(v.visit_date), "dd MMM yyyy")}
                       </td>
                       <td className="px-5 py-3">
                         <Badge tone={followUpBadge[v.follow_up_status]}>
-                          {v.follow_up_status}
+                          {FOLLOW_UP_STATUS_LABELS[v.follow_up_status]}
                         </Badge>
                       </td>
                       <td className="px-5 py-3 sticky-col-last">
-                        <div className="flex items-center gap-2">
-                          {v.follow_up_status === "pending" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => markFollowedUp(v, "contacted")}
-                            >
-                              <CheckCircle size={14} />
-                              Contacted
-                            </Button>
-                          )}
-                          {v.follow_up_status === "contacted" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => markFollowedUp(v, "joined")}
-                              disabled={convertVisitor.isPending}
-                            >
-                              <CheckCircle size={14} />
-                              {convertVisitor.isPending ? "Joining..." : "Joined"}
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setNotesOpen(v.id);
-                              setNotesValue(v.notes ?? "");
-                            }}
-                          >
-                            Notes
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteTarget(v)}
-                          >
-                            <Trash size={14} />
-                            Delete
-                          </Button>
-                        </div>
+                        <Dropdown
+                          trigger={<DotsThree size={20} weight="bold" />}
+                          items={[
+                            {
+                              label:
+                                v.follow_up_status === "joined"
+                                  ? "Added to Members"
+                                  : "Add to Member",
+                              icon: <UserPlusIcon size={16} />,
+                              onClick: () => addToMembers(v.id),
+                            },
+                            {
+                              label: "Delete",
+                              icon: <Trash size={16} />,
+                              variant: "danger",
+                              onClick: () => setDeleteTarget(v),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -471,33 +438,6 @@ export default function VisitorsPage() {
             </Button>
           </div>
         </form>
-      </Modal>
-
-      <Modal
-        open={!!notesOpen}
-        onClose={() => setNotesOpen(null)}
-        title="Visitor Notes"
-        size="sm"
-      >
-        <div className="space-y-4">
-          <Textarea
-            label="Notes"
-            value={notesValue}
-            onChange={(e) => setNotesValue(e.target.value)}
-            rows={5}
-          />
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setNotesOpen(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => notesOpen && saveNotes(notesOpen)}
-              disabled={updateVisitor.isPending}
-            >
-              Save Notes
-            </Button>
-          </div>
-        </div>
       </Modal>
 
       <DeleteConfirmModal
