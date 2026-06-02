@@ -7,14 +7,17 @@ import {
   parseJson,
   requireApiUser,
 } from "@/lib/api/server";
+import { attachPledgeCampaignMembers } from "@/lib/server/pledge-campaigns";
 
-const updateCampaignSchema = z.object({
-  name: z.string().min(1, "Campaign name is required").optional(),
-  description: z.string().optional(),
-  target_amount: z.number().positive().optional(),
-  start_date: z.string().optional(),
-  end_date: z.string().optional(),
-});
+const updateCampaignSchema = z
+  .object({
+    name: z.string().min(1, "Pledge name is required").optional(),
+    description: z.string().optional(),
+    target_amount: z.number().positive().optional(),
+    start_date: z.string().optional(),
+    end_date: z.string().optional(),
+  })
+  .strict();
 
 export async function PATCH(
   request: Request,
@@ -54,7 +57,8 @@ export async function PATCH(
       throw new Error(error.message);
     }
 
-    return jsonSuccess(data);
+    const [campaign] = await attachPledgeCampaignMembers([data]);
+    return jsonSuccess(campaign);
   } catch (error) {
     return handleRouteError(error);
   }

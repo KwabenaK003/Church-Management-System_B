@@ -7,14 +7,17 @@ import {
   parseJson,
   requireApiUser,
 } from "@/lib/api/server";
+import { attachPledgeCampaignMembers } from "@/lib/server/pledge-campaigns";
 
-const campaignSchema = z.object({
-  name: z.string().min(1, "Campaign name is required"),
-  description: z.string().optional(),
-  target_amount: z.number().positive().optional(),
-  start_date: z.string().optional(),
-  end_date: z.string().optional(),
-});
+const campaignSchema = z
+  .object({
+    name: z.string().min(1, "Pledge name is required"),
+    description: z.string().optional(),
+    target_amount: z.number().positive().optional(),
+    start_date: z.string().optional(),
+    end_date: z.string().optional(),
+  })
+  .strict();
 
 export async function GET() {
   const auth = await requireApiUser();
@@ -32,7 +35,8 @@ export async function GET() {
       throw new Error(error.message);
     }
 
-    return jsonSuccess(data ?? []);
+    const campaigns = await attachPledgeCampaignMembers(data ?? []);
+    return jsonSuccess(campaigns);
   } catch (error) {
     return handleRouteError(error);
   }
@@ -47,11 +51,11 @@ export async function POST(request: Request) {
   try {
     const payload = await parseJson(request, campaignSchema);
     const row = {
-      name: payload.name,
-      description: payload.description?.trim() || undefined,
+      name:          payload.name,
+      description:   payload.description?.trim() || undefined,
       target_amount: payload.target_amount,
-      start_date: payload.start_date || undefined,
-      end_date: payload.end_date || undefined,
+      start_date:    payload.start_date  || undefined,
+      end_date:      payload.end_date    || undefined,
     };
     const { data, error } = await supabaseAdmin
       .from("pledge_campaigns")
@@ -63,7 +67,8 @@ export async function POST(request: Request) {
       throw new Error(error.message);
     }
 
-    return jsonSuccess(data, 201);
+    const [campaign] = await attachPledgeCampaignMembers([data]);
+    return jsonSuccess(campaign, 201);
   } catch (error) {
     return handleRouteError(error);
   }

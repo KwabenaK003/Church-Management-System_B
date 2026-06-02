@@ -7,8 +7,10 @@ import {
   parseJson,
   requireApiUser,
 } from "@/lib/api/server";
+import { mirrorPledgeToCampaign } from "@/lib/server/pledge-campaigns";
 
 const updatePledgeSchema = z.object({
+  campaign_id: z.string().uuid().optional(),
   member_id: z.string().uuid().optional(),
   pledged_amount: z.number().positive().optional(),
   paid_amount: z.number().min(0).optional(),
@@ -39,12 +41,14 @@ export async function PATCH(
       .from("pledges")
       .update(updates)
       .eq("id", id)
-      .select("*")
+      .select("*, member:members(id,first_name,last_name), campaign:pledge_campaigns(id,name)")
       .single();
 
     if (error) {
       throw new Error(error.message);
     }
+
+    await mirrorPledgeToCampaign(data);
 
     return jsonSuccess(data);
   } catch (error) {
