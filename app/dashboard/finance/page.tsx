@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Tabs } from "@/components/ui/Tabs";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -22,7 +22,6 @@ import {
   usePledgeCampaigns,
   useCreatePledgeCampaign,
   useUpdatePledgeCampaign,
-  useDeletePledgeCampaign,
   usePledgesPaginated,
   useCreatePledge,
   useUpdatePledge,
@@ -53,7 +52,6 @@ import {
   Expense,
   PaymentMethod,
   Pledge,
-  PledgeCampaign,
   PledgeStatus,
 } from "@/types";
 import { useToastStore } from "@/lib/stores/toastStore";
@@ -74,10 +72,17 @@ const approvalBadge: Record<ApprovalStatus, "warning" | "success" | "danger"> = 
 
 const PLEDGE_STATUS_OPTIONS: { value: PledgeStatus; label: string }[] = [
   { value: "pending", label: "Pending" },
-  { value: "partial", label: "Partial" },
-  { value: "fulfilled", label: "Fulfilled" },
+  { value: "partial", label: "Partial Payment" },
+  { value: "fulfilled", label: "Full Payment" },
   { value: "cancelled", label: "Cancelled" },
 ];
+
+const pledgeStatusBadge: Record<PledgeStatus, "warning" | "info" | "success" | "danger"> = {
+  pending: "warning",
+  partial: "info",
+  fulfilled: "success",
+  cancelled: "danger",
+};
 
 // ─── Donations Tab ────────────────────────────────────────────────────────────
 
@@ -555,8 +560,9 @@ function ExpensesTab() {
 // ─── Pledges Tab ──────────────────────────────────────────────────────────────
 
 const pledgeSchema = z.object({
-  member_id: z.string().min(1, "Required"),
-  pledged_amount: z.string().min(1, "Required"),
+  name: z.string().min(1, "Pledge name is required"),
+  member_id: z.string().min(1, "Member is required"),
+  pledged_amount: z.string().min(1, "Pledged amount is required"),
   paid_amount: z.string().optional(),
   status: z.enum(["pending", "partial", "fulfilled", "cancelled"]).default("pending"),
   due_date: z.string().optional(),
@@ -567,42 +573,39 @@ type PledgeFormValues = z.input<typeof pledgeSchema>;
 
 function PledgesTab() {
   const addToast = useToastStore((state) => state.addToast);
-  const [addCampaignOpen, setAddCampaignOpen] = useState(false);
   const [addPledgeOpen, setAddPledgeOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState("");
+  const [editingPledge, setEditingPledge] = useState<Pledge | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Pledge | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [editingCampaign, setEditingCampaign] = useState<PledgeCampaign | null>(null);
-  const [editingPledge, setEditingPledge] = useState<Pledge | null>(null);
-  const [deleteCampaignTarget, setDeleteCampaignTarget] = useState<PledgeCampaign | null>(null);
-  const [deletePledgeTarget, setDeletePledgeTarget] = useState<Pledge | null>(null);
-  const { data: campaigns, isLoading: campaignsLoading } = usePledgeCampaigns();
-  const { data, isLoading: pledgesLoading } = usePledgesPaginated(
+  const { data: campaigns } = usePledgeCampaigns();
+  const { data, isLoading } = usePledgesPaginated(
     selectedCampaign || undefined,
     search,
     page,
     rowsPerPage,
   );
   const { data: members } = useMembers();
-  const showMemberSearch = (members?.length ?? 0) > 10;
   const createCampaign = useCreatePledgeCampaign();
   const updateCampaign = useUpdatePledgeCampaign();
-  const deleteCampaign = useDeletePledgeCampaign();
   const createPledge = useCreatePledge();
   const updatePledge = useUpdatePledge();
   const deletePledge = useDeletePledge();
 
   const pledges = data?.data ?? [];
   const totalCount = data?.count ?? 0;
-  const activeCampaign = campaigns?.find((campaign) => campaign.id === selectedCampaign);
 
-  const campaignForm = useForm({
-    defaultValues: { name: "", description: "", target_amount: "", start_date: "", end_date: "" },
-  });
+  const memberOptions = members?.map((member) => ({
+    value: member.id,
+    label: `${member.first_name} ${member.last_name}`,
+  })) ?? [];
+
   const pledgeForm = useForm<PledgeFormValues>({
     resolver: zodResolver(pledgeSchema),
     defaultValues: {
+      name: "",
       member_id: "",
       pledged_amount: "",
       paid_amount: "0",
@@ -612,78 +615,53 @@ function PledgesTab() {
     },
   });
 
-  const memberOptions = members?.map((member) => ({
-    value: member.id,
-    label: `${member.first_name} ${member.last_name}`,
-  })) ?? [];
-  const pledgeDeleteLabel = useMemo(() => {
-    if (!deletePledgeTarget) {
-      return "";
-    }
-
-    return deletePledgeTarget.member
-      ? `${deletePledgeTarget.member.first_name} ${deletePledgeTarget.member.last_name}`.trim()
-      : "this member";
-  }, [deletePledgeTarget]);
-
-  async function onCampaignSubmit(data: any) {
-    const payload = {
-      name: data.name,
-      description: data.description?.trim() || undefined,
-      target_amount: data.target_amount ? parseFloat(data.target_amount) : undefined,
-      start_date: data.start_date || undefined,
-      end_date: data.end_date || undefined,
-    };
-
-    const campaign = editingCampaign
-      ? await updateCampaign.mutateAsync({
-          id: editingCampaign.id,
-          ...payload,
-        })
-      : await createCampaign.mutateAsync(payload);
-
-    setSelectedCampaign(campaign.id);
-    setPage(1);
-    campaignForm.reset();
-    setAddCampaignOpen(false);
-    setEditingCampaign(null);
-  }
+  const totalPledged = pledges.reduce(
+    (sum, pledge) => sum + (pledge.pledged_amount ?? 0),
+    0,
+  );
 
   async function onPledgeSubmit(data: PledgeFormValues) {
-    if (!selectedCampaign) {
-      return;
-    }
-
+    const pledgedAmount = parseFloat(data.pledged_amount);
+    const paidAmount = data.paid_amount?.trim() ? parseFloat(data.paid_amount) : 0;
     const payload = {
       member_id: data.member_id,
-      pledged_amount: parseFloat(data.pledged_amount),
-      paid_amount: data.paid_amount?.trim() ? parseFloat(data.paid_amount) : 0,
-      status: data.status ?? "pending",
+      pledged_amount: pledgedAmount,
+      paid_amount: paidAmount,
+      status: data.status,
       due_date: data.due_date || undefined,
       notes: data.notes?.trim() || undefined,
     };
 
     try {
       if (editingPledge) {
+        await updateCampaign.mutateAsync({
+          id: editingPledge.campaign_id,
+          name: data.name,
+          target_amount: pledgedAmount,
+          end_date: payload.due_date,
+        });
         await updatePledge.mutateAsync({
           id: editingPledge.id,
+          campaign_id: editingPledge.campaign_id,
           ...payload,
         });
         addToast("Pledge updated successfully.", "success");
       } else {
+        const campaign = await createCampaign.mutateAsync({
+          name: data.name,
+          target_amount: pledgedAmount,
+          end_date: payload.due_date,
+        });
         await createPledge.mutateAsync({
-          campaign_id: selectedCampaign,
-          member_id: payload.member_id,
-          pledged_amount: payload.pledged_amount,
-          due_date: payload.due_date,
-          notes: payload.notes,
+          campaign_id: campaign.id,
+          ...payload,
         });
         addToast("Pledge created successfully.", "success");
       }
 
       pledgeForm.reset();
-      setAddPledgeOpen(false);
       setEditingPledge(null);
+      setAddPledgeOpen(false);
     } catch (error) {
       addToast(
         error instanceof Error ? error.message : "Failed to save pledge.",
@@ -692,33 +670,10 @@ function PledgesTab() {
     }
   }
 
-  function openCreateCampaign() {
-    setEditingCampaign(null);
-    campaignForm.reset({
-      name: "",
-      description: "",
-      target_amount: "",
-      start_date: "",
-      end_date: "",
-    });
-    setAddCampaignOpen(true);
-  }
-
-  function openEditCampaign(campaign: PledgeCampaign) {
-    setEditingCampaign(campaign);
-    campaignForm.reset({
-      name: campaign.name,
-      description: campaign.description ?? "",
-      target_amount: campaign.target_amount?.toString() ?? "",
-      start_date: campaign.start_date ?? "",
-      end_date: campaign.end_date ?? "",
-    });
-    setAddCampaignOpen(true);
-  }
-
   function openCreatePledge() {
     setEditingPledge(null);
     pledgeForm.reset({
+      name: "",
       member_id: "",
       pledged_amount: "",
       paid_amount: "0",
@@ -732,6 +687,7 @@ function PledgesTab() {
   function openEditPledge(pledge: Pledge) {
     setEditingPledge(pledge);
     pledgeForm.reset({
+      name: pledge.campaign?.name ?? "",
       member_id: pledge.member_id,
       pledged_amount: pledge.pledged_amount.toString(),
       paid_amount: pledge.paid_amount.toString(),
@@ -742,165 +698,113 @@ function PledgesTab() {
     setAddPledgeOpen(true);
   }
 
+  function closePledgeModal() {
+    setAddPledgeOpen(false);
+    setEditingPledge(null);
+    pledgeForm.reset();
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Campaigns</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Pledges</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            Create pledge campaigns, then add and track member commitments.
+            Create and track member pledges.
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="secondary" size="sm" onClick={openCreateCampaign}>
-            <Plus size={14} />
-            New Campaign
-          </Button>
-          {selectedCampaign && (
-            <Button size="sm" onClick={openCreatePledge}>
-              <Plus size={14} />
-              Add Pledge
-            </Button>
-          )}
-        </div>
+        <Button variant="secondary" size="sm" onClick={openCreatePledge}>
+          <Plus size={14} />
+          New Pledge
+        </Button>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative min-w-[220px] flex-1">
-          <MagnifyingGlass
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Search pledges by member, status, or notes..."
-            className="w-full rounded-lg border border-[var(--border-color)] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-          />
-        </div>
-        {activeCampaign && (
-          <div className="text-sm text-slate-500">
-            Viewing: <span className="font-medium text-slate-700">{activeCampaign.name}</span>
-          </div>
-        )}
+      <div className="bg-white border border-[var(--border-color)] rounded-xl px-5 py-4">
+        <p className="text-xs text-slate-500 uppercase tracking-wide">Total Pledged</p>
+        <p className="text-2xl font-bold text-slate-900 mt-1">
+          GHS {totalPledged.toLocaleString("en", { minimumFractionDigits: 2 })}
+        </p>
       </div>
 
-      <div className="bg-white border border-[var(--border-color)] rounded-xl p-4">
-        {campaignsLoading ? (
-          <div className="flex justify-center items-center h-28">
-            <Spinner size={24} className="text-[var(--blue-600)]" />
-          </div>
-        ) : (campaigns?.length ?? 0) === 0 ? (
-          <EmptyState
-            title="No campaigns yet"
-            description="Create a campaign to start collecting and managing pledges."
-          />
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {campaigns?.map((campaign) => {
-              const isSelected = selectedCampaign === campaign.id;
-
-              return (
-                <div
-                  key={campaign.id}
-                  className={`rounded-xl border p-4 transition-colors ${
-                    isSelected
-                      ? "border-[var(--blue-600)] bg-blue-50/50"
-                      : "border-[var(--border-color)] bg-white"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold text-slate-900">{campaign.name}</h3>
-                      <p className="text-sm text-slate-500 mt-1">
-                        {campaign.description?.trim() || "No description provided."}
-                      </p>
-                    </div>
-                    {isSelected && <Badge tone="primary">Selected</Badge>}
-                  </div>
-                  <div className="mt-4 space-y-1 text-sm text-slate-500">
-                    <p>
-                      Target:{" "}
-                      <span className="font-medium text-slate-700">
-                        {campaign.target_amount != null
-                          ? `GHS ${campaign.target_amount.toLocaleString("en", {
-                              minimumFractionDigits: 2,
-                            })}`
-                          : "Not set"}
-                      </span>
-                    </p>
-                    <p>
-                      Dates:{" "}
-                      <span className="font-medium text-slate-700">
-                        {campaign.start_date
-                          ? format(new Date(campaign.start_date), "dd MMM yyyy")
-                          : "No start date"}
-                        {" - "}
-                        {campaign.end_date
-                          ? format(new Date(campaign.end_date), "dd MMM yyyy")
-                          : "No end date"}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="mt-4 flex gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      variant={isSelected ? "primary" : "secondary"}
-                      onClick={() => {
-                        setSelectedCampaign(campaign.id);
-                        setPage(1);
-                      }}
-                    >
-                      {isSelected ? "Viewing Pledges" : "View Pledges"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => openEditCampaign(campaign)}
-                    >
-                      <Pencil size={14} />
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-500 hover:bg-red-50 hover:text-red-700"
-                      onClick={() => setDeleteCampaignTarget(campaign)}
-                    >
-                      <Trash size={14} />
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      <div className="relative min-w-[220px]">
+        <MagnifyingGlass
+          size={16}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+        />
+        <input
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Search pledges..."
+          className="w-full rounded-lg border border-[var(--border-color)] bg-white py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+        />
       </div>
+
+      <Select
+        label="Pledge"
+        value={selectedCampaign}
+        onChange={(event) => {
+          setSelectedCampaign(event.target.value);
+          setPage(1);
+        }}
+        options={[
+          { value: "", label: "All Pledges" },
+          ...(campaigns?.map((campaign) => ({
+            value: campaign.id,
+            label: campaign.name,
+          })) ?? []),
+        ]}
+      />
 
       <div className="bg-white border border-[var(--border-color)] rounded-xl overflow-hidden">
-        {!selectedCampaign ? <EmptyState title="Select a campaign" description="Choose a campaign card above to view and manage pledges." /> :
-          pledgesLoading ? <div className="flex justify-center items-center h-48"><Spinner size={24} className="text-[var(--blue-600)]" /></div> :
-          pledges.length === 0 ? <EmptyState title="No pledges for this campaign" description="Add a pledge to start tracking commitments for this campaign." /> :
+        {isLoading ? (
+          <div className="flex justify-center items-center h-48">
+            <Spinner size={24} className="text-[var(--blue-600)]" />
+          </div>
+        ) : pledges.length === 0 ? (
+          <EmptyState title="No pledges recorded" />
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
-                <tr>{["Member", "Pledged", "Paid", "Status", "Due Date", "Actions"].map(h => <th key={h} className="px-5 py-3 text-left font-medium">{h}</th>)}</tr>
+                <tr>
+                  {["Pledge", "Pledged By", "Pledged", "Paid", "Status", "Due Date", "Actions"].map((heading) => (
+                    <th key={heading} className="px-5 py-3 text-left font-medium">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
-                {pledges.map(p => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 font-medium text-slate-900">{p.member?.first_name} {p.member?.last_name}</td>
-                    <td className="px-5 py-3">GHS {p.pledged_amount.toLocaleString()}</td>
-                    <td className="px-5 py-3">GHS {p.paid_amount.toLocaleString()}</td>
-                    <td className="px-5 py-3"><Badge tone={p.status === "fulfilled" ? "success" : p.status === "cancelled" ? "danger" : "warning"}>{p.status}</Badge></td>
-                    <td className="px-5 py-3 text-slate-500">{p.due_date ? format(new Date(p.due_date), "dd MMM yyyy") : "—"}</td>
+                {pledges.map((pledge) => (
+                  <tr key={pledge.id} className="hover:bg-slate-50">
+                    <td className="px-5 py-3 font-medium text-slate-900">
+                      {pledge.campaign?.name ?? "-"}
+                    </td>
+                    <td className="px-5 py-3 text-slate-500">
+                      {pledge.member
+                        ? `${pledge.member.first_name ?? ""} ${pledge.member.last_name ?? ""}`.trim()
+                        : "-"}
+                    </td>
+                    <td className="px-5 py-3 font-semibold">
+                      GHS {pledge.pledged_amount.toLocaleString("en", { minimumFractionDigits: 2 })}
+                    </td>
                     <td className="px-5 py-3">
-                      <div className="flex gap-2 flex-wrap">
-                        <Button size="sm" variant="ghost" onClick={() => openEditPledge(p)}>
+                      GHS {pledge.paid_amount.toLocaleString("en", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-5 py-3">
+                      <Badge tone={pledgeStatusBadge[pledge.status]}>
+                        {pledge.status}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-3 text-slate-500">
+                      {pledge.due_date ? format(new Date(pledge.due_date), "dd MMM yyyy") : "-"}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => openEditPledge(pledge)}>
                           <Pencil size={14} />
                           Edit
                         </Button>
@@ -908,7 +812,7 @@ function PledgesTab() {
                           size="sm"
                           variant="ghost"
                           className="text-red-500 hover:bg-red-50 hover:text-red-700"
-                          onClick={() => setDeletePledgeTarget(p)}
+                          onClick={() => setDeleteTarget(pledge)}
                         >
                           <Trash size={14} />
                           Delete
@@ -920,7 +824,7 @@ function PledgesTab() {
               </tbody>
             </table>
           </div>
-        }
+        )}
       </div>
 
       <Pagination
@@ -934,38 +838,23 @@ function PledgesTab() {
         }}
       />
 
-      <Modal open={addCampaignOpen} onClose={() => { setAddCampaignOpen(false); setEditingCampaign(null); campaignForm.reset(); }} title={editingCampaign ? "Edit Campaign" : "New Campaign"}>
-        <form onSubmit={campaignForm.handleSubmit(onCampaignSubmit)} className="space-y-4">
-          <Input label="Campaign Name" {...campaignForm.register("name")} required />
-          <Input label="Target Amount (GHS)" type="number" step="0.01" {...campaignForm.register("target_amount")} />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Start Date" type="date" {...campaignForm.register("start_date")} />
-            <Input label="End Date" type="date" {...campaignForm.register("end_date")} />
-          </div>
-          <Textarea label="Description" {...campaignForm.register("description")} />
-          <div className="flex justify-end gap-3"><Button variant="secondary" type="button" onClick={() => { setAddCampaignOpen(false); setEditingCampaign(null); campaignForm.reset(); }}>Cancel</Button><Button type="submit" disabled={createCampaign.isPending || updateCampaign.isPending}>{createCampaign.isPending || updateCampaign.isPending ? "Saving..." : editingCampaign ? "Save Changes" : "Create Campaign"}</Button></div>
-        </form>
-      </Modal>
-
-      <Modal
-        open={addPledgeOpen}
-        onClose={() => {
-          setAddPledgeOpen(false);
-          setEditingPledge(null);
-          pledgeForm.reset();
-        }}
-        title={editingPledge ? "Edit Pledge" : "Add Pledge"}
-      >
+      <Modal open={addPledgeOpen} onClose={closePledgeModal} title={editingPledge ? "Edit Pledge" : "New Pledge"}>
         <form onSubmit={pledgeForm.handleSubmit(onPledgeSubmit)} className="space-y-4">
+          <Input
+            label="Pledge Name"
+            {...pledgeForm.register("name")}
+            error={pledgeForm.formState.errors.name?.message}
+            required
+          />
           <Controller
             name="member_id"
             control={pledgeForm.control}
             render={({ field }) => (
               <SearchableSelect
-                label="Member"
+                label="Pledged By"
                 options={memberOptions}
                 placeholder="Select member"
-                showSearch={showMemberSearch}
+                showSearch={memberOptions.length > 10}
                 searchPlaceholder="Search members..."
                 error={pledgeForm.formState.errors.member_id?.message}
                 {...field}
@@ -1001,15 +890,7 @@ function PledgesTab() {
           </div>
           <Textarea label="Notes" {...pledgeForm.register("notes")} />
           <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => {
-                setAddPledgeOpen(false);
-                setEditingPledge(null);
-                pledgeForm.reset();
-              }}
-            >
+            <Button variant="secondary" type="button" onClick={closePledgeModal}>
               Cancel
             </Button>
             <Button type="submit" disabled={createPledge.isPending || updatePledge.isPending}>
@@ -1017,45 +898,25 @@ function PledgesTab() {
                 ? "Saving..."
                 : editingPledge
                   ? "Save Changes"
-                  : "Save Pledge"}
+                  : "Create Pledge"}
             </Button>
           </div>
         </form>
       </Modal>
 
       <DeleteConfirmModal
-        open={!!deleteCampaignTarget}
-        onClose={() => setDeleteCampaignTarget(null)}
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
         onConfirm={() => {
-          if (!deleteCampaignTarget) {
-            return;
-          }
-
-          return deleteCampaign.mutateAsync(deleteCampaignTarget.id).then(() => {
-            if (selectedCampaign === deleteCampaignTarget.id) {
-              setSelectedCampaign("");
-            }
-            setDeleteCampaignTarget(null);
-            setPage(1);
-          });
-        }}
-        description={`Are you sure you want to delete "${deleteCampaignTarget?.name ?? ""}"? Any pledges linked to this campaign will also be removed.`}
-        isPending={deleteCampaign.isPending}
-      />
-
-      <DeleteConfirmModal
-        open={!!deletePledgeTarget}
-        onClose={() => setDeletePledgeTarget(null)}
-        onConfirm={() => {
-          if (!deletePledgeTarget) {
+          if (!deleteTarget) {
             return;
           }
 
           return deletePledge
-            .mutateAsync(deletePledgeTarget.id)
+            .mutateAsync(deleteTarget.id)
             .then(() => {
               addToast("Pledge deleted successfully.", "success");
-              setDeletePledgeTarget(null);
+              setDeleteTarget(null);
             })
             .catch((error) => {
               addToast(
@@ -1064,7 +925,7 @@ function PledgesTab() {
               );
             });
         }}
-        description={`Are you sure you want to delete the pledge for "${pledgeDeleteLabel}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete this pledge? This action cannot be undone.`}
         isPending={deletePledge.isPending}
       />
     </div>

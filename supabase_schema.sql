@@ -505,10 +505,12 @@ create table donor_statement_runs (
 create table pledge_campaigns (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  member_id uuid references members(id) on delete set null,
   description text,
   target_amount numeric(12, 2),
   start_date date,
   end_date date,
+  status pledge_status not null default 'pending',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
