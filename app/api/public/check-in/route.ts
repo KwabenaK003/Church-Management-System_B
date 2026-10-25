@@ -28,15 +28,28 @@ export async function POST(request: Request) {
     let memberId = payload.member_id;
 
     if (!memberId && payload.search) {
-      const query = `%${payload.search}%`;
-      const { data: members, error: memberLookupError } = await supabaseAdmin
+      const searchTerm = payload.search.trim();
+      const parts = searchTerm.split(/\s+/).filter(Boolean);
+
+      let memberQuery = supabaseAdmin
         .from("members")
         .select("id")
-        .or(
+        .eq("membership_status", "active");
+
+      if (parts.length > 1) {
+        const first = parts[0];
+        const last = parts[parts.length - 1];
+        memberQuery = memberQuery.or(
+          `and(first_name.ilike.%${first}%,last_name.ilike.%${last}%),and(first_name.ilike.%${last}%,last_name.ilike.%${first}%),email.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`,
+        );
+      } else {
+        const query = `%${searchTerm}%`;
+        memberQuery = memberQuery.or(
           `email.ilike.${query},first_name.ilike.${query},last_name.ilike.${query}`,
-        )
-        .eq("membership_status", "active")
-        .limit(1);
+        );
+      }
+
+      const { data: members, error: memberLookupError } = await memberQuery.limit(1);
 
       if (memberLookupError || !members || members.length === 0) {
         return jsonError("Member not found", 404);

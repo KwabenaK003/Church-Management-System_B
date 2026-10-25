@@ -24,6 +24,7 @@ import { Dropdown } from "@/components/ui/Dropdown";
 import { Pagination } from "@/components/ui/Pagination";
 import { DeleteConfirmModal } from "@/components/ui/DeleteConfirmModal";
 import { exportToCsv } from "@/lib/utils/exportCsv";
+import { getRepeatAttendees } from "@/lib/services/attendanceService";
 import { usePersistentTableSelection } from "@/lib/hooks/usePersistentTableSelection";
 import {
   Plus,
@@ -88,6 +89,7 @@ export default function AttendancePage() {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [isExportingRepeatAttendees, setIsExportingRepeatAttendees] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
 
   const { data: services, isLoading: servicesLoading } = useServices();
@@ -177,6 +179,38 @@ export default function AttendancePage() {
     ]);
   }
 
+  async function handleRepeatAttendeesExport() {
+    setIsExportingRepeatAttendees(true);
+
+    try {
+      const repeatAttendees = await getRepeatAttendees();
+      if (repeatAttendees.length === 0) {
+        addToast("No members have checked in to more than one service yet", "info");
+        return;
+      }
+
+      exportToCsv(repeatAttendees.map((attendee) => ({ ...attendee })), "repeat-service-attendees", [
+        { key: "member_number", header: "Member Number" },
+        { key: "first_name", header: "First Name" },
+        { key: "last_name", header: "Last Name" },
+        { key: "email", header: "Email" },
+        { key: "phone", header: "Phone" },
+        { key: "check_in_count", header: "Check-in Count" },
+        { key: "first_check_in", header: "First Check-in" },
+        { key: "latest_check_in", header: "Latest Check-in" },
+        { key: "services_attended", header: "Services Attended" },
+      ]);
+      addToast("Repeat attendee CSV downloaded — open it with Google Sheets", "success");
+    } catch (error) {
+      addToast(
+        error instanceof Error ? error.message : "Unable to export repeat attendees",
+        "error",
+      );
+    } finally {
+      setIsExportingRepeatAttendees(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -187,10 +221,20 @@ export default function AttendancePage() {
             {services?.length !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Button onClick={() => setAddOpen(true)}>
-          <Plus size={16} />
-          Create Service
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={handleRepeatAttendeesExport}
+            disabled={isExportingRepeatAttendees}
+          >
+            <Export size={16} />
+            {isExportingRepeatAttendees ? "Preparing..." : "Export Repeat Attendees"}
+          </Button>
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus size={16} />
+            Create Service
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
