@@ -2,6 +2,19 @@ import { Attendance, Service, ServiceType, Member } from "@/types";
 import { apiFetch } from "@/lib/api/client";
 import { getMembers } from "@/lib/services/memberService";
 
+export interface RepeatAttendee {
+  member_id: string;
+  member_number: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  check_in_count: number;
+  first_check_in: string;
+  latest_check_in: string;
+  services_attended: string;
+}
+
 const CLOSED_SERVICE_CHECK_IN_ERROR = "Cannot check in to a closed service";
 const DUPLICATE_CHECK_IN_ERROR = "Member has already checked in for this service";
 
@@ -90,6 +103,10 @@ export async function getAttendance(serviceId?: string): Promise<Attendance[]> {
   return apiFetch<Attendance[]>(
     `/api/attendance/records${query ? `?${query}` : ""}`,
   );
+}
+
+export async function getRepeatAttendees(): Promise<RepeatAttendee[]> {
+  return apiFetch<RepeatAttendee[]>("/api/attendance/repeat-attendees");
 }
 
 export async function getAbsentMembers(lastServices = 1): Promise<Member[]> {
