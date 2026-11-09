@@ -79,3 +79,7 @@ docs/                ← Product and implementation planning documents
 - Run `npm run build` to validate the project before deploying.
 - Keep `supabase/migrations/20260427090000_initial_church_management_schema.sql` and `20260427091000_initial_storage_setup.sql` as the clean starting point for new environments.
 - Consider connecting additional analytics or logging tools before going to production.
+
+
+The Church Management System is a modern web-based CMS designed to help churches manage their members, services, attendance, visitors, follow-ups, finances, communications, equipment, and reporting from one centralized platform. It provides an administrative dashboard for maintaining member records, creating services, tracking attendance through manual or public check-in links and QR codes, monitoring church growth, and supporting everyday operational decisions with organized data.
+Built with Next.js, React, TypeScript, and Tailwind CSS, the system delivers a responsive and maintainable user experience. It uses Supabase for authentication, PostgreSQL database storage, row-level security, and server-side data access; React Query and Zustand support efficient client-side data fetching and state management. Additional technologies include Zod and React Hook Form for validated forms, Recharts for reports and analytics, Papa Parse for CSV import/export, QRCode for attendance check-in codes, Resend and React Email for email communication, and Vercel for deployment.
